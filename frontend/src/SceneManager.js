@@ -1,0 +1,610 @@
+/**
+ * SceneManager.js - Scene Orchestration and Visual Management
+ * 
+ * Manages the visual presentation of the game, coordinates layers, handles free spin
+ * transitions, and processes game results from the backend.
+ * 
+ * Key Responsibilities:
+ * - Manage PixiJS layers (background, scene, transition)
+ * - Initialize animated backgrounds (Background1 and Background2)
+ * - Handle free spin video transitions
+ * - Process game results and trigger appropriate animations
+ * - Coordinate between GridRenderer and AnimationManager
+ * - Manage audio playback
+ * 
+ * Layer System:
+ * - backgroundLayer: Animated backgrounds (always visible, bottom layer)
+ * - sceneLayer: Main game grid (scaled and positioned, middle layer)
+ * - transitionLayer: Free spin video transitions (top layer, shown on trigger)
+ * 
+ * Dependencies:
+ * - GridRenderer: Renders the slot grid
+ * - AnimationManager: Handles cascade animations
+ * - BackgroundAnimation: Animated background sequences
+ * - FreeSpinTransition: Video transition for free spins
+ * - AudioManager: Sound effects and music
+ */
+
+import * as PIXI from 'pixi.js';
+import GridRenderer from './GridRenderer.js';
+import UIRenderer from './UIRenderer.js';
+import AnimationManager from './AnimationManager.js';
+import BackgroundAnimation from './BackgroundAnimation.js';
+import FreeSpinTransition from './FreeSpinTransition.js';
+import AudioManager from './AudioManager.js';
+
+/** Symbol alias used as fallback when texture is not found */
+const PLACEHOLDER_SYMBOL = 'PLACEHOLDER';
+
+/**
+ * SceneManager - Orchestrates the visual presentation of the game
+ * 
+ * Manages all visual layers, coordinates animations, and processes game results.
+ */
+export default class SceneManager {
+  /**
+   * Creates a new SceneManager instance
+   * 
+   * @param {Object} options - Configuration options
+   * @param {PIXI.Application} options.app - PixiJS application instance
+   * @param {PIXI.Assets} options.assets - PixiJS Assets API for loading textures
+   */
+  constructor({ app, assets }) {
+    this.app = app; // PixiJS application
+    this.assets = assets; // PixiJS Assets API
+    
+    // Create managers
+    this.animationManager = new AnimationManager(); // Handles cascade animations
+    this.gridRenderer = null; // Will be created in initialize()
+    this.uiRenderer = new UIRenderer({ app }); // UI overlay renderer
+    this.audioManager = new AudioManager(); // Sound manager
+    
+    // Create layer containers (rendering order: background -> scene -> transition)
+    this.backgroundLayer = new PIXI.Container(); // Background animations (bottom)
+    this.backgroundLayer.visible = true;
+    this.backgroundLayer.alpha = 1;
+    this.sceneLayer = new PIXI.Container(); // Main game grid (middle)
+    this.sceneLayer.visible = true;
+    this.sceneLayer.alpha = 1;
+    this.transitionLayer = new PIXI.Container(); // Free spin video (top)
+    this.transitionLayer.visible = false;
+    
+    // Background animations
+    this.backgroundSprite = null; // Legacy static background (if used)
+    this.backgroundAnimation = null; // Background1 (base game, 105 frames)
+    this.background2Animation = null; // Background2 (free spins, 151 frames)
+    this.freeSpinTransition = null; // Video transition for free spins
+    
+    // Grid configuration
+    this.gridSize = null; // Grid dimensions (width, height)
+    this.columns = 0; // Number of columns (from theme manifest)
+    this.rows = 0; // Number of rows (from theme manifest)
+    this.availableSymbols = []; // List of symbol aliases available
+    
+    // Resize handler (bound to this instance)
+    this.handleResize = () => this.resizeStage();
+    
+    // Game state
+    this.isTurboMode = false; // Turbo mode flag (speeds up animations)
+  }
+
+  /**
+   * Sets turbo mode on/off
+   * 
+   * Turbo mode speeds up all animations by 60% (40% of normal duration).
+   * Propagates to GridRenderer and AnimationManager.
+   * 
+   * @param {boolean} enabled - True to enable turbo mode, false to disable
+   */
+  setTurboMode(enabled) {
+    this.isTurboMode = enabled;
+    if (this.gridRenderer) {
+      this.gridRenderer.setTurboMode(enabled);
+    }
+    if (this.animationManager) {
+      this.animationManager.setTurboMode(enabled);
+    }
+  }
+
+  /**
+   * Initializes the game scene
+   * 
+   * Sets up all layers, loads backgrounds, creates grid renderer, and prepares
+   * the scene for gameplay.
+   * 
+   * Flow:
+   * 1. Extract grid dimensions from theme manifest
+   * 2. Extract available symbols
+   * 3. Add layers to stage in correct order
+   * 4. Initialize Background1 animation (base game)
+   * 5. Initialize free spin transition video
+   * 6. Initialize Background2 animation (free spins, hidden initially)
+   * 7. Create GridRenderer with proper dimensions
+   * 8. Set up resize handler
+   * 9. Load and start audio
+   * 
+   * @param {Object} themeManifest - Theme configuration from ThemeManager
+   * @param {Object} themeManifest.grid - Grid configuration
+   * @param {number} themeManifest.grid.columns - Number of columns
+   * @param {number} themeManifest.grid.rows - Number of rows
+   * @param {number} [themeManifest.grid.maxRows] - Maximum rows for Megaways
+   * @param {Array} themeManifest.assets - Asset definitions
+   * @returns {Promise<void>}
+   */
+  async initialize(themeManifest) {
+    // Extract grid dimensions
+    this.columns = themeManifest.grid.columns;
+    this.rows = themeManifest.grid.rows;
+    // For Megaways, use maxRows if available, otherwise use rows
+    this.maxRows = themeManifest.grid.maxRows || themeManifest.grid.rows || this.rows;
+    
+    // Extract available symbols (exclude textures and placeholder)
+    this.availableSymbols = themeManifest.assets
+      .map((asset) => asset.alias)
+      .filter((alias) => !alias.includes('TEXTURE') && alias !== PLACEHOLDER_SYMBOL);
+
+    // Add layers to stage in rendering order (bottom to top)
+    this.app.stage.addChild(this.backgroundLayer); // Bottom: backgrounds
+    this.app.stage.addChild(this.sceneLayer); // Middle: game grid
+    this.app.stage.addChild(this.transitionLayer); // Top: free spin video
+    
+    // Ensure layers are in correct visibility state
+    this.backgroundLayer.visible = true;
+    this.sceneLayer.visible = true;
+    this.transitionLayer.visible = false; // Hidden until free spins trigger
+    
+    // Initialize Background1 animation (base game background)
+    // Uses 105 WebP frames (background1_1.webp to background1_105.webp)
+    this.backgroundAnimation = new BackgroundAnimation({
+      app: this.app,
+      basePath: '/animations/Background1',
+      frameCount: 105,
+      framePrefix: 'background1_',
+      frameExtension: '.webp'
+    });
+    await this.backgroundAnimation.load();
+    this.backgroundLayer.addChild(this.backgroundAnimation.container);
+    this.backgroundAnimation.container.visible = true;
+    // Resize background to fill screen
+    this.backgroundAnimation.resize(this.app.renderer.width, this.app.renderer.height);
+    this.backgroundAnimation.play(); // Start animation loop
+    
+    // Initialize free spin transition video
+    // Plays full-screen MP4 video when free spins are triggered
+    this.freeSpinTransition = new FreeSpinTransition({
+      app: this.app,
+      videoPath: '/animations/free spin transistions/PixVerse_V5_Transition_360P.mp4'
+    });
+    await this.freeSpinTransition.load();
+    this.transitionLayer.addChild(this.freeSpinTransition.container);
+    
+    // Initialize Background2 animation (free spins background)
+    // Uses 151 WebP frames (background2_1.webp to background2_151.webp)
+    // Hidden until free spins trigger, then shown after transition video
+    this.background2Animation = new BackgroundAnimation({
+      app: this.app,
+      basePath: '/animations/Background2',
+      frameCount: 151,
+      framePrefix: 'background2_',
+      frameExtension: '.webp'
+    });
+    await this.background2Animation.load();
+    this.background2Animation.container.visible = false; // Hidden until free spins
+    this.backgroundLayer.addChild(this.background2Animation.container);
+
+    this.gridRenderer = new GridRenderer({
+      app: this.app,
+      columns: this.columns,
+      rows: this.maxRows, // Use maxRows for Megaways support
+      textureBehindSymbols: this.assets.get('STONE_TEXTURE')
+    });
+    this.gridRenderer.initialize(this.sceneLayer);
+    this.gridRenderer.setAvailableSymbols(this.availableSymbols);
+    // Set default reel heights for initial display (will be updated on first spin)
+    // For Megaways, use default heights matching the original 6x5 grid initially
+    const defaultHeights = Array(this.columns).fill(this.rows);
+    this.gridRenderer.setReelHeights(defaultHeights);
+    this.gridSize = this.gridRenderer.getSize();
+    // Initialize reels with random symbols for initial display
+    this.gridRenderer.initializeReels(this.assets);
+    this.animationManager.attachGrid(this.gridRenderer, this.assets);
+    this.resizeStage();
+
+    window.addEventListener('resize', this.handleResize);
+    this.uiRenderer.initialize(this.app.stage);
+    
+    // Force initial resize to position everything
+    this.resizeStage();
+    
+    console.log('SceneManager initialized:', {
+      columns: this.columns,
+      rows: this.rows,
+      maxRows: this.maxRows,
+      gridSize: this.gridSize,
+      backgroundVisible: this.backgroundLayer.visible,
+      sceneVisible: this.sceneLayer.visible,
+      reelsCount: this.gridRenderer?.reels?.length || 0
+    });
+    
+    // Load and start audio
+    await this.audioManager.load();
+    this.audioManager.playBackgroundMusic();
+  }
+
+  /**
+   * Processes game results and triggers appropriate animations
+   * 
+   * Main entry point for rendering spin results. Checks if free spins were
+   * triggered and plays transition video if needed, otherwise proceeds with
+   * normal result rendering.
+   * 
+   * Free spin triggers:
+   * 1. Buy free spins feature (freeSpinsAwarded > 0)
+   * 2. Scatter win (freeSpins.JustTriggered === true)
+   * 
+   * @param {Object} results - Game results from backend
+   * @param {Object} [playResponse] - Full play response (includes win, balance, etc.)
+   */
+  renderResults(results, playResponse = null) {
+    if (!results || !this.gridRenderer) {
+      return;
+    }
+
+    // Check if free spins were triggered
+    // Free spins can be triggered by:
+    // 1. Buy free spins feature (freeSpinsAwarded > 0 in response)
+    // 2. Scatter win that triggers free spins (results.freeSpins?.JustTriggered === true)
+    const freeSpinsAwarded = playResponse?.freeSpinsAwarded ?? 0;
+    const freeSpinsJustTriggered = results.freeSpins?.JustTriggered ?? results.freeSpins?.triggeredThisSpin ?? false;
+    const isFreeSpinTriggered = freeSpinsAwarded > 0 || freeSpinsJustTriggered;
+
+    console.log('Free spin check:', { freeSpinsAwarded, freeSpinsJustTriggered, isFreeSpinTriggered, hasTransition: !!this.freeSpinTransition });
+
+    // Play free spin transition if triggered
+    if (isFreeSpinTriggered && this.freeSpinTransition) {
+      console.log('Playing free spin transition');
+      // Switch to free spin music
+      this.audioManager.playFreeSpinMusic();
+      // Play transition video, then continue with results
+      return this.playFreeSpinTransition(() => {
+        this.continueRenderResults(results, playResponse);
+      });
+    }
+
+    // No free spins triggered, proceed with normal rendering
+    this.continueRenderResults(results, playResponse);
+  }
+
+  /**
+   * Continues rendering results after free spin transition (if any)
+   * 
+   * Handles the actual result rendering:
+   * - Updates Megaways reel heights if variable
+   * - Updates top reel symbols if present
+   * - Displays ways-to-win count
+   * - Handles cascades or final grid display
+   * - Triggers cascade animations
+   * - Plays win sounds
+   * 
+   * @param {Object} results - Game results from backend
+   * @param {Object} [playResponse] - Full play response
+   */
+  continueRenderResults(results, playResponse = null) {
+    if (!results || !this.gridRenderer) {
+      return;
+    }
+
+    // Extract Megaways data (for variable reel heights)
+    const reelHeights = results.reelHeights; // Array of heights per column
+    const topReelSymbols = results.topReelSymbols; // Symbols for horizontal top reel
+    const waysToWin = results.waysToWin; // Total ways to win (Megaways calculation)
+
+    // Update reel heights if variable (Megaways support)
+    if (reelHeights && reelHeights.length > 0) {
+      console.log('[SceneManager] continueRenderResults: Setting reel heights', reelHeights);
+      this.gridRenderer.setReelHeights(reelHeights);
+      // Don't rebuild during spin - wait for spin to complete
+      // The reels will be rebuilt when needed (e.g., on next spin start)
+    }
+
+    // Update top reel symbols (horizontal reel above columns 2-5)
+    if (topReelSymbols && topReelSymbols.length > 0) {
+      this.gridRenderer.setTopReel(topReelSymbols);
+    }
+
+    // Update ways-to-win display in UI (Megaways feature)
+    if (waysToWin !== null && waysToWin !== undefined) {
+      const waysDisplay = document.getElementById('ways-to-win');
+      const waysBox = document.getElementById('ways-to-win-box');
+      if (waysDisplay) {
+        waysDisplay.textContent = waysToWin.toLocaleString(); // Format with commas
+      }
+      if (waysBox) {
+        waysBox.style.display = 'block'; // Show the display box
+      }
+    }
+
+    // Extract cascade data
+    const cascades = results.cascades ?? []; // Array of cascade steps
+    const finalGrid = results.finalGridSymbols; // Final grid state (if no cascades)
+
+    // No cascades - just show final grid
+    if (!cascades.length) {
+      if (Array.isArray(finalGrid)) {
+        console.log('[SceneManager] continueRenderResults: No cascades, final grid received', {
+          gridLength: finalGrid.length,
+          columns: this.columns,
+          rows: this.rows,
+          isSpinning: this.gridRenderer?.isSpinning,
+          isRunning: this.gridRenderer?.isRunning()
+        });
+        console.log('[SceneManager] continueRenderResults: Final grid symbols (first 30):', finalGrid.slice(0, 30));
+        
+        // CRITICAL: Preload result IMMEDIATELY when backend response arrives
+        // This applies final textures to spinning reels DURING the spin animation
+        // so they stop on the correct symbols, not random ones
+        console.log('[SceneManager] continueRenderResults: Calling preloadSpinResult IMMEDIATELY');
+        this.gridRenderer.preloadSpinResult(finalGrid, this.assets);
+        console.log('[SceneManager] continueRenderResults: preloadSpinResult completed');
+
+        /**
+         * Shows final grid after spin completes
+         * Called either immediately (if spin already stopped) or as callback when spin completes
+         * Note: Textures are already applied by preloadSpinResult above, so transition is smooth
+         */
+        const showFinalGrid = async () => {
+          this.audioManager.playStop(); // Play reel stop sound
+          // Transition from spinning reels to static grid
+          // Textures are already applied, so this is just a layer switch
+          await this.gridRenderer.transitionSpinToGrid(finalGrid, this.assets);
+          
+          // Play win sound if there's a win
+          if (playResponse && playResponse.win) {
+            const winAmount = typeof playResponse.win === 'number' ? playResponse.win : (playResponse.win?.amount ?? 0);
+            if (winAmount > 0) {
+              // Consider it a big win if win is 10x or more of base bet
+              const baseBet = playResponse.baseBet ?? 0.2;
+              if (winAmount >= baseBet * 10) {
+                this.audioManager.playBigWin();
+              } else {
+                this.audioManager.playWin();
+              }
+            }
+          }
+        };
+
+        // If reels are still spinning, wait for them to complete
+        if (this.gridRenderer.isRunning()) {
+          this.gridRenderer.onSpinComplete = showFinalGrid;
+        } else {
+          // Reels already stopped, show grid immediately
+          showFinalGrid();
+        }
+      }
+      return;
+    }
+
+    // Cascades exist - animate them step by step
+    const firstCascade = cascades[0];
+
+    // Preload first cascade result immediately so textures are applied during spin
+    // This prevents texture flicker when reels stop
+    if (Array.isArray(firstCascade.gridBefore)) {
+      this.gridRenderer.preloadSpinResult(firstCascade.gridBefore, this.assets);
+    }
+
+    /**
+     * Starts cascade animation sequence
+     * Called after reels stop spinning
+     */
+    const startCascades = async () => {
+      this.audioManager.playStop(); // Play reel stop sound
+      
+      // Transition from spinning reels to first cascade grid state
+      if (Array.isArray(firstCascade.gridBefore)) {
+        await this.gridRenderer.transitionSpinToGrid(firstCascade.gridBefore, this.assets);
+      }
+
+      // Play cascade sequence (highlights wins, fades symbols, drops new ones)
+      this.animationManager.playCascadeSequence(cascades, {
+        gridRenderer: this.gridRenderer,
+        assets: this.assets,
+        audioManager: this.audioManager,
+        playResponse: playResponse,
+        isTurboMode: this.isTurboMode
+      });
+      
+      // Play win sound if there's a win (check final cascade or playResponse)
+      // This plays after all cascades complete
+      if (playResponse && playResponse.win) {
+        const winAmount = typeof playResponse.win === 'number' ? playResponse.win : (playResponse.win?.amount ?? 0);
+        if (winAmount > 0) {
+          // Consider it a big win if win is 10x or more of base bet
+          const baseBet = playResponse.baseBet ?? 0.2;
+          if (winAmount >= baseBet * 10) {
+            this.audioManager.playBigWin();
+          } else {
+            this.audioManager.playWin();
+          }
+        }
+      }
+    };
+
+    // If reels are still spinning, wait for them to complete
+    if (this.gridRenderer.isRunning()) {
+      this.gridRenderer.onSpinComplete = startCascades;
+    } else {
+      // Reels already stopped, start cascades immediately
+      startCascades();
+    }
+  }
+
+  /**
+   * Handles window resize events
+   * 
+   * Resizes all layers and backgrounds to match new window size.
+   * Called automatically when window is resized.
+   */
+  resizeStage() {
+    const rendererWidth = this.app.renderer.width;
+    const rendererHeight = this.app.renderer.height;
+
+    // Resize animated backgrounds to fill screen
+    if (this.backgroundAnimation) {
+      this.backgroundAnimation.resize(rendererWidth, rendererHeight);
+    }
+    if (this.background2Animation) {
+      this.background2Animation.resize(rendererWidth, rendererHeight);
+    }
+
+    // Resize free spin transition video to fill screen
+    if (this.freeSpinTransition) {
+      this.freeSpinTransition.resize(rendererWidth, rendererHeight);
+    }
+
+    // Legacy static background (if still exists)
+    if (this.backgroundSprite) {
+      this.backgroundSprite.width = rendererWidth;
+      this.backgroundSprite.height = rendererHeight;
+      this.backgroundSprite.x = 0;
+      this.backgroundSprite.y = 0;
+    }
+
+    // Reposition scene layer (grid) to center on screen
+    this.positionSceneLayer();
+  }
+
+  /**
+   * Plays free spin transition video
+   * 
+   * When free spins are triggered, this plays a full-screen video transition,
+   * then switches to Background2 animation and shows game elements again.
+   * 
+   * Flow:
+   * 1. Stop any running spin
+   * 2. Hide game elements and Background1
+   * 3. Show transition layer
+   * 4. Play video
+   * 5. When video ends: show Background2, show game elements, hide transition
+   * 6. Call completion callback
+   * 
+   * @param {Function} onComplete - Callback called when transition completes
+   * @returns {Promise<void>}
+   */
+  async playFreeSpinTransition(onComplete) {
+    console.log('playFreeSpinTransition called', { hasTransition: !!this.freeSpinTransition });
+    if (!this.freeSpinTransition) {
+      console.warn('No free spin transition available');
+      if (onComplete) onComplete();
+      return Promise.resolve();
+    }
+
+    // Stop any running spin during transition
+    if (this.gridRenderer && this.gridRenderer.isRunning()) {
+      this.gridRenderer.stopSpin();
+    }
+
+    // Hide game elements during transition (but keep background visible)
+    this.sceneLayer.visible = false;
+    // Hide background1, will show background2 after transition
+    if (this.backgroundAnimation) {
+      this.backgroundAnimation.container.visible = false;
+    }
+    this.backgroundLayer.visible = true;
+    
+    // Ensure transition layer is visible and on top
+    this.transitionLayer.visible = true;
+    this.transitionLayer.zIndex = 9999; // Ensure it's on top
+
+    // Play transition animation
+    return new Promise((resolve) => {
+      this.freeSpinTransition.play(() => {
+        console.log('Free spin transition completed');
+        
+        // Switch to Background2 after transition
+        if (this.background2Animation) {
+          this.background2Animation.container.visible = true;
+          this.background2Animation.play();
+        }
+        
+        // Show game elements after transition
+        this.sceneLayer.visible = true;
+        this.backgroundLayer.visible = true;
+        this.transitionLayer.visible = false;
+        
+        if (onComplete) {
+          onComplete();
+        }
+        resolve();
+      });
+    });
+  }
+
+  /**
+   * Positions the scene layer (grid) on screen
+   * 
+   * Centers the grid on screen and applies scale/offset adjustments.
+   * Can be customized via SLOT_SCALE and SLOT_Y_OFFSET constants.
+   */
+  positionSceneLayer() {
+    if (!this.gridSize) {
+      return;
+    }
+
+    // ===== SLOT CANVAS SIZE ADJUSTMENT =====
+    // Increase this value to make the slot canvas bigger (e.g., 1.2 = 20% bigger, 1.5 = 50% bigger)
+    // Change this value and save to see the effect!
+    const SLOT_SCALE = 1.15;  // <-- CHANGE THIS: 1.0 = normal, 1.2 = 20% bigger, 1.5 = 50% bigger
+    
+    // ===== SLOT CANVAS POSITION ADJUSTMENT =====
+    // Y position offset - negative values move up, positive values move down
+    // Change this value and save to see the effect!
+    const SLOT_Y_OFFSET = 0;  // <-- CHANGE THIS: 0 = centered, -100 = move up 100px, 100 = move down 100px
+
+    const rendererWidth = this.app.renderer.width;
+    const rendererHeight = this.app.renderer.height;
+    
+    // Apply scale to the entire slot canvas
+    this.sceneLayer.scale.set(SLOT_SCALE);
+    
+    // Calculate offsets based on scaled size to center the grid
+    const scaledWidth = this.gridSize.width * SLOT_SCALE;
+    const scaledHeight = this.gridSize.height * SLOT_SCALE;
+    const offsetX = Math.max((rendererWidth - scaledWidth) / 2, 0);
+    const offsetY = Math.max((rendererHeight - scaledHeight) / 2, 0);
+    
+    // Round to prevent sub-pixel positioning that can cause jitter
+    this.sceneLayer.x = Math.round(offsetX);
+    // Center vertically - offsetY already centers it, just add any manual offset
+    this.sceneLayer.y = Math.round(offsetY) + SLOT_Y_OFFSET;
+  }
+
+  // Removed renderPlaceholderBoard - reels are initialized with random symbols
+
+  /**
+   * Starts the spin animation
+   * 
+   * Called when user clicks spin button. Starts visual reel spinning
+   * and plays spin sound effect.
+   */
+  startSpinAnimation() {
+    if (!this.gridRenderer || this.availableSymbols.length === 0) {
+      return;
+    }
+    this.gridRenderer.startSpin(this.assets); // Start visual spin
+    this.audioManager.playSpin(); // Play spin sound
+  }
+
+  /**
+   * Stops the spin animation
+   * 
+   * Called on error or when spin needs to be stopped immediately.
+   * Used for error recovery.
+   */
+  stopSpinAnimation() {
+    if (!this.gridRenderer) {
+      return;
+    }
+    this.gridRenderer.stopSpin();
+  }
+}

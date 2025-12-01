@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Jungle Relics: Cascading Riches</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Changa+One:wght@400&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Changa One", sans-serif;
+      }
+      body {
+        margin: 0;
+        background: #030604;
+        color: #f8f5e7;
+        min-height: 100vh;
+        overflow: hidden;
+      }
+      #game-root {
+        background: #030604;
+      }
+      #game-root canvas {
+        display: block;
+        background: #030604;
+      }
+      #game-root {
+        width: 100vw;
+        height: 100vh;
+        position: relative;
+      }
+      #top-hud {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        display: flex;
+        gap: 12px;
+        z-index: 5;
+      }
+      #top-right-hud {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-end;
+        z-index: 5;
+      }
+      #balance-box {
+        background: rgba(8, 12, 15, 0.8);
+        border: 1px solid rgba(255, 215, 0, 0.45);
+        border-radius: 12px;
+        padding: 12px 20px;
+        min-width: 160px;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+      }
+      #timestamp-box {
+        background: rgba(8, 12, 15, 0.8);
+        border: 1px solid rgba(255, 215, 0, 0.45);
+        border-radius: 12px;
+        padding: 8px 16px;
+        font-size: 0.85rem;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+      }
+      .icon-button {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 215, 0, 0.4);
+        background: rgba(0, 0, 0, 0.6);
+        color: #f8f5e7;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        transition: all 0.2s;
+      }
+      .icon-button:hover {
+        background: rgba(255, 215, 0, 0.2);
+        border-color: rgba(255, 215, 0, 0.6);
+      }
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.85);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal.active {
+        display: flex;
+      }
+      .modal-content {
+        background: rgba(12, 18, 22, 0.95);
+        border: 2px solid rgba(255, 215, 0, 0.5);
+        border-radius: 20px;
+        padding: 30px;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+      }
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+        padding-bottom: 15px;
+      }
+      .modal-title {
+        font-size: 1.5rem;
+        color: #ffd34c;
+      }
+      .close-button {
+        background: none;
+        border: none;
+        color: #f8f5e7;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 5px 10px;
+      }
+      .close-button:hover {
+        color: #ffd34c;
+      }
+      .bet-adjustment-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .bet-input-group {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+      .bet-input-group label {
+        min-width: 100px;
+      }
+      .bet-input-group input {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid rgba(255, 215, 0, 0.3);
+        background: rgba(0, 0, 0, 0.5);
+        color: #f8f5e7;
+        border-radius: 8px;
+        font-size: 1rem;
+      }
+      .bet-buttons {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .bet-quick-button {
+        padding: 10px;
+        border: 1px solid rgba(255, 215, 0, 0.4);
+        background: rgba(0, 0, 0, 0.6);
+        color: #f8f5e7;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .bet-quick-button:hover {
+        background: rgba(255, 215, 0, 0.2);
+      }
+      .bet-quick-button.active {
+        background: rgba(255, 215, 0, 0.4);
+        border-color: #ffd34c;
+      }
+      .sound-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+      }
+      .volume-control {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+      .volume-control label {
+        min-width: 120px;
+      }
+      .volume-slider {
+        flex: 1;
+        height: 6px;
+        background: rgba(255, 215, 0, 0.2);
+        border-radius: 3px;
+        outline: none;
+      }
+      .volume-slider::-webkit-slider-thumb {
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        background: #ffd34c;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+      .volume-value {
+        min-width: 50px;
+        text-align: right;
+      }
+      .hud-card {
+        background: rgba(8, 12, 15, 0.8);
+        border: 1px solid rgba(255, 215, 0, 0.45);
+        border-radius: 12px;
+        padding: 12px 20px;
+        min-width: 140px;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+      }
+      .hud-label {
+        display: block;
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        color: rgba(255, 255, 255, 0.7);
+      }
+      .hud-value {
+        font-size: 1.05rem;
+      }
+      #bottom-panel {
+        position: absolute;
+        bottom: 120px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        z-index: 5;
+      }
+      .info-card {
+        width: 200px;
+        text-align: center;
+        background: rgba(12, 18, 22, 0.85);
+        border: 1px solid rgba(255, 215, 0, 0.35);
+        border-radius: 20px;
+        padding: 16px 12px;
+        box-shadow: inset 0 0 20px rgba(255, 204, 0, 0.15);
+      }
+      .info-card .label {
+        display: block;
+        font-size: 0.75rem;
+        letter-spacing: 0.12em;
+        color: rgba(255, 255, 255, 0.65);
+      }
+      .info-card .value {
+        font-size: 1.4rem;
+        margin-top: 6px;
+      }
+      .bet-amount-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: center;
+      }
+      #bet-amount {
+        cursor: pointer;
+        transition: color 0.2s;
+        min-width: 80px;
+        text-align: center;
+      }
+      #bet-amount:hover {
+        color: #ffd34c;
+      }
+      .bet-adjust-button {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 215, 0, 0.4);
+        background: rgba(0, 0, 0, 0.6);
+        color: #f8f5e7;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        transition: all 0.2s;
+        font-weight: bold;
+      }
+      .bet-adjust-button:hover {
+        background: rgba(255, 215, 0, 0.2);
+        border-color: rgba(255, 215, 0, 0.6);
+      }
+      .bet-adjust-button:active {
+        transform: scale(0.95);
+      }
+      .spin-button {
+        width: 220px;
+        height: 100px;
+        border-radius: 24px;
+        border: none;
+        background: linear-gradient(180deg, #ffd34c 0%, #c88a1e 100%);
+        color: #231305;
+        font-size: 1.8rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        cursor: pointer;
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4), inset 0 4px 8px rgba(255, 255, 255, 0.35);
+      }
+      .spin-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      #bottom-controls {
+        position: absolute;
+        bottom: 30px;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        z-index: 5;
+      }
+      #btn-buy,
+      .secondary-button {
+        border: 1px solid rgba(255, 215, 0, 0.4);
+        background: rgba(0, 0, 0, 0.6);
+        color: #f8f5e7;
+        padding: 10px 16px;
+        border-radius: 999px;
+        letter-spacing: 0.05em;
+        cursor: pointer;
+      }
+      #btn-buy:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .bet-modes {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 215, 0, 0.3);
+        border-radius: 999px;
+        padding: 8px 18px;
+      }
+      .bet-modes label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.85rem;
+      }
+      input[name="bet-mode"] {
+        accent-color: #f1c550;
+      }
+    </style>
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <div id="game-root"></div>
+    <div id="top-hud">
+      <div class="hud-card">
+        <span class="hud-label">ROUND</span>
+        <span class="hud-value" id="round-label">--</span>
+      </div>
+      <div class="hud-card">
+        <span class="hud-label">CURRENT WIN</span>
+        <span class="hud-value" id="round-win">0.00</span>
+      </div>
+      <div id="balance-box" class="hud-card">
+        <span class="hud-label">BALANCE</span>
+        <span class="hud-value" id="balance-amount">0.00</span>
+      </div>
+    </div>
+    <div id="top-right-hud">
+      <div id="ways-to-win-box" class="hud-card" style="display: none;">
+        <span class="hud-label">MEGAWAYS</span>
+        <span class="hud-value" id="ways-to-win">0</span>
+      </div>
+      <div id="timestamp-box">--:--:--</div>
+      <div style="display: flex; gap: 10px;">
+        <button class="icon-button" id="btn-info" title="Game Info">ℹ️</button>
+        <button class="icon-button" id="btn-sound" title="Sound Settings">🔊</button>
+      </div>
+    </div>
+    <div id="bottom-panel">
+      <div class="info-card">
+        <span class="label">TOTAL BET</span>
+        <div class="bet-amount-container">
+          <button class="bet-adjust-button" id="bet-down" title="Decrease Bet">−</button>
+          <span class="value" id="bet-amount">0.20</span>
+          <button class="bet-adjust-button" id="bet-up" title="Increase Bet">+</button>
+        </div>
+      </div>
+      <button id="btn-spin" class="spin-button">Spin</button>
+      <div class="info-card">
+        <span class="label">TOTAL WIN</span>
+        <span class="value" id="win-amount">0.00</span>
+      </div>
+    </div>
+    <div id="bottom-controls">
+      <button id="btn-buy" class="secondary-button">Buy Free Spins</button>
+      <div class="bet-modes">
+        <label><input type="radio" name="bet-mode" value="standard" checked>Standard</label>
+        <label><input type="radio" name="bet-mode" value="ante">Ante</label>
+      </div>
+      <button class="secondary-button" id="btn-turbo" disabled>Turbo</button>
+    </div>
+
+    <!-- Bet Adjustment Modal -->
+    <div id="bet-modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">Adjust Bet Amount</h2>
+          <button class="close-button" id="close-bet-modal">&times;</button>
+        </div>
+        <div class="bet-adjustment-controls">
+          <div class="bet-input-group">
+            <label>Bet Amount:</label>
+            <input type="number" id="bet-input" step="0.01" min="0.01" value="0.20">
+          </div>
+          <div class="bet-buttons">
+            <button class="bet-quick-button" data-bet="0.10">0.10</button>
+            <button class="bet-quick-button" data-bet="0.20">0.20</button>
+            <button class="bet-quick-button" data-bet="0.50">0.50</button>
+            <button class="bet-quick-button" data-bet="1.00">1.00</button>
+            <button class="bet-quick-button" data-bet="2.00">2.00</button>
+            <button class="bet-quick-button" data-bet="5.00">5.00</button>
+            <button class="bet-quick-button" data-bet="10.00">10.00</button>
+            <button class="bet-quick-button" data-bet="20.00">20.00</button>
+          </div>
+          <button class="spin-button" id="apply-bet" style="width: 100%; margin-top: 20px;">Apply</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info Modal -->
+    <div id="info-modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">Game Information</h2>
+          <button class="close-button" id="close-info-modal">&times;</button>
+        </div>
+        <div id="info-content">
+          <h3 style="color: #ffd34c; margin-top: 0;">Rules</h3>
+          <p>Jungle Relics is a cascading slot game where winning symbols disappear and new symbols fall into place, creating opportunities for multiple wins in a single spin.</p>
+          
+          <h3 style="color: #ffd34c;">How to Play</h3>
+          <ul>
+            <li>Set your bet amount using the bet adjustment button</li>
+            <li>Click SPIN to start the game</li>
+            <li>Match 3 or more symbols horizontally to win</li>
+            <li>Winning symbols cascade and new symbols fall into place</li>
+            <li>Free spins can be triggered by scatter symbols or purchased</li>
+          </ul>
+
+          <h3 style="color: #ffd34c;">Paytable</h3>
+          <div id="paytable-content">
+            <p>Symbol values are calculated based on your bet amount. Higher value symbols pay more when matched.</p>
+            <p><strong>Scatter Symbol:</strong> Triggers free spins when 3 or more appear</p>
+            <p><strong>Wild Symbol:</strong> Substitutes for other symbols to create winning combinations</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sound Settings Modal -->
+    <div id="sound-modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">Sound Settings</h2>
+          <button class="close-button" id="close-sound-modal">&times;</button>
+        </div>
+        <div class="sound-controls">
+          <div class="volume-control">
+            <label>Background Music:</label>
+            <input type="range" id="music-volume" class="volume-slider" min="0" max="100" value="50">
+            <span class="volume-value" id="music-volume-value">50%</span>
+          </div>
+          <div class="volume-control">
+            <label>Sound Effects:</label>
+            <input type="range" id="sfx-volume" class="volume-slider" min="0" max="100" value="70">
+            <span class="volume-value" id="sfx-volume-value">70%</span>
+          </div>
+          <button class="secondary-button" id="mute-all" style="margin-top: 20px;">Mute All</button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+

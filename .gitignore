@@ -1,0 +1,46 @@
+# .NET build artifacts
+bin/
+obj/
+**/bin/
+**/obj/
+*.user
+*.rsuser
+*.suo
+*.cache
+*.pdb
+
+# VS / Rider
+.vs/
+.idea/
+
+# Node dependencies and build outputs
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Public assets folder (exclude from git)
+frontend/public/
+
+# Logs and OS junk
+*.log
+logs/
+Thumbs.db
+Desktop.ini
+
+# Zips / archives generated locally
+*.zip
+
+# Tooling
+.turbo/
+.vscode/
+
+# Large media files (videos, large images)
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+# Keep .webp images but exclude very large ones if needed
+# Uncomment below if you want to exclude large webp files
+# *.webp
+

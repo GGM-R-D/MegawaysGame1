@@ -1,0 +1,18 @@
+{
+  "name": "jungle-relics-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite --port 3010",
+    "build": "vite build",
+    "preview": "vite preview --port 3010"
+  },
+  "dependencies": {
+    "gsap": "^3.12.5",
+    "howler": "^2.2.4",
+    "pixi.js": "^8.1.0"
+  },
+  "devDependencies": {
+    "vite": "^7.2.4"
+  }
+}

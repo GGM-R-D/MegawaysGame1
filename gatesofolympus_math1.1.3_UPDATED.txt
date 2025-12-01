@@ -1,0 +1,686 @@
+ 
+ 
+ 
+ 
+ 
+ 
+Gates of Olympus  
+Version 1.1.3 
+Mathematician Zaur  
+  Changes log  
+ 
+Revision details  Version  Date  
+Base model  1.0.1  04.07.25 
+Ante bet and Buy Free Spins features added, Reelsets changed , 
+Weights for multipliers changed  1.1.1  14.07.25  
+Corrections in weights for Reelsets and Paytable  1.1.2  14.08.25  
+RTP changed to 96.5% ( weights for multipliers  changed , Reelset BB 
+changed ) 1.1.3  29.09.25  
+   
+   
+   
+   
+  Math document versioning  
+ 
+Preliminary 
+math  1.0.1 
+Alpha math  1.1.2 
+Beta math  1.1.3  
+Final math   
+ 
+ 
+ 
+  General Information  
+Game Name:  Gates of Olympus  
+RTP: 9 6.50% 
+Reel Grid: 6x5 
+Lines: - 
+Bets: TBD  
+Main game features:  Tumble feature, Multipliers, Ante bet, Buy Bonus  
+ 
+Overall Statistics  
+ RTP version 
+96.5    
+Full 
+Game  RTP 96.50%    
+Hit Frequency  28.29%    
+Volatility  High     
+Standard Deviation  13.3     
+Max Win (based on 5000 
+mln spins)  39221     
+Big win (x10) frequency  1 in 37    
+Epic win (x100) frequency  1 in 391    
+Base 
+game  RTP 70.38 %    
+Hit Frequency  28.29%    
+Avg Win (xBet)  2.49    
+Free 
+Spins  RTP 26.12%    
+Start Frequency  1 in 322    
+Hit Frequency  99.97 %    
+Avg Win (xBet)  84.0    High-level description  
+ 
+Symbols pay anywhere on the screen. The total number of the same symbols on the screen at the end of a 
+spin determines the value of the win . 
+ 
+Base Game  
+Scatter  symbol is present on all reels . Scatter pays on any position  
+ 
+Tumble Feature  
+The Tumble Feature means that after every spin, winning combinations are paid and all winning symbols 
+disappear. The remaining symbols fall to the bottom of the screen and the empty positions are replaced with 
+symbols coming from above.  
+Tumbling will continue until no more winning combinations appear as a result of a tumble. There’s no limit to 
+the number of possible tumbles.  
+All wins are added to the player’s balance after all of the tumbles resulted from a base spin have been played.  
+ 
+There are multiplier  symbols. They are present on all reels and can hit randomly during spins and tumbles in 
+both base game and Free Spins.  
+Whenever a Multiplier symbol hits, it takes a random multiplier value of 2x, 3x, 4x, 5x, 6x, 8x, 10x, 12x, 15x, 
+20x, 25x, 50x, 100x, 250x or 500x.  
+When the tumbling sequence ends, the values of all Multiplier symbols on the screen are added together and 
+the total win of the sequence is multiplied by the final value.  
+ 
+Free Spins  
+The Free Spins feature is awarded when 4 or more Scatter symbols hit anywhere on the screen.  
+The round starts with 15 free spins.  
+During the Free Spins round, whenever a Multiplier symbols hits and the spin results in a win, the Multiplier 
+value gets added to the total multiplier. For the whole duration of the round, whenever any new Multiplier 
+symbols hits and results in a win the total  multiplier value is also used to multiply the win.  
+Whenever 3 or more Scatter symbols hit during Free Spins round, 5 additional free spins are awarded.  
+Special reels are in play during the Free Spins round.  
+ 
+Ante Bet  
+The player has the option to select the bet multiplier. Depending  on the selected bet, the game behaves 
+differently.  
+The possible values are:  
+Bet multiplier 25x – the chance to win free spins naturally is doubled. More Scatter Symbols are present on the 
+reels. The Free Spins Purchase feature is disabled.  
+Bet multiplier 20x – gives the ability to purchase a Free Spins round by paying a value equal to 100x total bet.  
+ 
+Buy Free Spins  
+The Free Spins round can be instantly triggered from the base game by buying it for 100x current total bet. 
+When the 25x ante bet feature is enabled, the Buy Free Spins feature is disabled  
+RTP of Ante bet feature is 9 6.54% 
+RTP of Buy Free Spins feature is 9 6.55% Symbols  
+ 
+Sym1 – Scatter  
+Sym2 - high pay symbol  
+Sym3 - high pay symbol  
+Sym4 - high pay symbol  
+Sym5 - high pay symbol  
+Sym6 - low pay symbol  
+Sym7 - low pay symbol  
+Sym8 - low pay symbol  
+Sym9 - low pay symbol  
+Sym1 0 - low pay symbol  
+Sym1 1 – Multiplier  symbol  
+ 
+ 
+ 
+ 
+ 
+Features Description  
+ 
+Scatters do not participate in a Tumble Feature  
+ 
+ 
+For Base game we use weights to determine which reelset will be used:  
+ 
+Reelsets  Weights  
+Reelset Low 860 
+Reelset High 140 
+ 
+For Ante bet we use weights to determine which reelset will be used:  
+Reelsets  Weights  
+Reelset Low 160 
+Reelset High 840 
+ 
+For Buy Free spins feature we use Reelset BB  
+ 
+ 
+For multipliers for spins , we use weights : 
+ 
+Multiplier  Weights Base Game  Weights Ante bet  
+2 200 400 
+3 200 410 
+4 370 480 
+5 350 470 6 300 350 
+8 600 200 
+10 350 150 
+12 240 40 
+15 30 30 
+20 25 25 
+25 15 15 
+50 10 10 
+100 5 5 
+250 2 2 
+500 1 1 
+ 
+For multipliers for Free spins , we use 2 types of weights  
+ 
+Multiplier  Weights High  Weights Low  
+2 1100  1700  
+3 700 1000  
+4 350 500 
+5 250 300 
+6 200 200 
+8 100 100 
+10 50 50 
+12 40 40 
+15 30 30 
+20 25 25 
+25 15 15 
+50 10 10 
+100 5 1 
+250 2 0 
+500 1 0 
+ 
+ 
+We use Weights High until we get total multiplier >= 250. After that we use Weights Low.  
+Example:  
+Free spin 1: win 10, we have 2 Multiplier symbols. Current value of total multiplier = 0. For these 2 multiplier 
+symbols we used Weights High and got x2 and x100. Total multiplier became x102, win for spin – 1020.  
+Free spin 2: win 30, we have no Multiplier symbols. Current value of total multiplier = x102, win for spin – 30. 
+Free spin 3: win 0, we have Multiplier symbol. Current value of total multiplier = x102. For this multiplier symbol 
+we used Weights High and got x8. Total multiplier does not change, win for spin – 0. 
+Free spin 4: win 20, we have 2 Multiplier symbols. Current value of total multiplier = x102. For these 2 
+multiplier symbols we used Weights High and got x250 and x100. Total multiplier became x 452, win for spin – 
+9040. 
+Free spin 5: win 10, we have 2 Multiplier symbols. Current value of total multiplier = 452. For these 2 multiplier 
+symbols we used Weights Low and got x2 and x3. Total multiplier became x 457, win for spin – 4570. 
+ 
+  Paytable  
+For totalbet = 20 
+  8-9 10-11 12-30 
+Sym2  - 200 500 1000  
+Sym3  - 50 200 500 
+Sym4  - 40 100 300 
+Sym5  - 30 40 240 
+Sym6  - 20 30 200 
+Sym7  - 16 24 160 
+Sym8  - 10 20 100 
+Sym9  - 8 18 80 
+Sym10  - 5 15 40 
+ 
+Scatter pays:  
+4 – 3x total bet  
+5 – 5x total bet  
+6+ – 100x total bet   Reel Strips  
+Reelset High  
+[Sym1,Sym3,Sym3,Sym10,Sym10,Sym8,Sym8,Sym6,Sym6,Sym10,Sym9,Sym7,Sym8,Sym4,Sym4,Sym9,Sym9,Sym7,Sym
+7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym7,Sym8,Sym5,Sym5,Sym1,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym9,Sym
+9,Sym3,Sym5,Sym5,Sym10,Sym10,Sym7,Sym6,Sym6,Sym10,Sym9,Sym9,Sy m1,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,Sy
+m10,Sym10,Sym6,Sym6,Sym4,Sym4,Sym9,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym9,Sym9,Sym8,Sym7,Sym6,Sym6,S
+ym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym7,Sym9,Sym9,Sym8,Sym8,Sym1,S
+ym5,Sym5,Sym10,Sym10,Sym9,S ym9,Sym8,Sym7,Sym4,Sym9,Sym9,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym8,Sym
+9,Sym9,Sym7,Sym7,Sym2,Sym2,Sym8,Sym3,Sym10,Sym9,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sy
+m3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym8,Sym8,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7, Sym5,Sy
+m5,Sym8,Sym8,11,Sym9,Sym10,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym4,Sym9,Sym9,Sym
+5,Sym5,Sym1,Sym10,Sym9,Sym6,Sym6,Sym8,Sym5,Sym9,Sym7,Sym7,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,Sym10,Sym
+10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3, Sym3,Sym9,Sym9,Sym7,Sym8,Sym6,Sym6,Sym10,S
+ym10,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym7,Sym8,Sym5,Sym5,Sy
+m10,Sym10,Sym9,Sym9,Sym7,Sym8,Sym9,Sym9,Sym3,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym1,Sym9,Sym10,Sym
+7,Sym7,Sym2,Sym2,Sym8 ,Sym8,Sym3,Sym3,Sym10,Sym10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,S
+ym3,Sym3,Sym4,Sym9,Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,S
+ym5,Sym8,Sym10,Sym9,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym9,Sym9,S ym4,Sym5,Sym5,
+Sym10,Sym10,Sym6,Sym6,Sym5,Sym9,Sym9,Sym7,Sym7,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym6,Sy
+m6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym9,Sym9,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,
+Sym4,Sym4,Sym9,Sym10,Sym7,Sym7,Sym5,Sym5,Sym8,Sym 8,Sym9,Sym9,Sym7,Sym8,Sym8,Sym5,Sym5,Sym10,Sym1
+0,Sym9,Sym9,Sym7,Sym7,Sym10,Sym9,Sym9,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym8,Sym4,Sym9,Sym7,Sym7,Sy
+m2,Sym2,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,
+Sym9,Sym9,Sym8, Sym6,Sym6,Sym10,Sym9,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,S
+ym9,Sym9,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym9,Sym9,Sym3,Sym5,Sym5,Sym10,Sym1
+0,Sym8,Sym6,Sym6,Sym9,Sym4,Sym7,Sym7,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10 ,Sym6,Sym6,Sym4,Sym
+4,Sym10,Sym10,Sym2,Sym2]  
+[Sym1,Sym3,Sym3,Sym8,Sym8,Sym9,Sym10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym3,Sym6,Sym6,Sym9,Sym9,Sym
+7,Sym7,Sym10,Sym10,Sym8,Sym8,Sym8,Sym9,Sym9,Sym10,Sym10,Sym6,Sym9,Sym9,Sym5,Sym5,Sym8,Sym8,Sym1,S
+ym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym8,Sym8,Sym6,Sym6,Sym2,Sym2,Sym 7,Sym7,Sym9,Sym9,Sym5,Sym5,Sym10,Sy
+m10,Sym7,Sym7,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym8,Sym8,Sym9,Sym9,Sym6,Sym6,Sym4,S
+ym4,Sym8,Sym10,Sym10,Sym6,Sym6,Sym9,Sym10,Sym7,Sym8,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,S
+ym8,Sym8,Sym9,Sym9,Sym5,Sym 5,Sym8,Sym8,Sym9,Sym9,Sym1,Sym7,Sym7,Sym3,Sym3,Sym8,Sym8,Sym6,Sym6,Sy
+m2,Sym2,Sym7,Sym7,Sym10,Sym9,Sym5,Sym5,Sym10,Sym10,Sym7,Sym8,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym
+1,Sym3,Sym3,Sym8,Sym8,Sym9,Sym9,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym10,Sym6,Sym6,Sym9,Sym9,S ym7,Sy
+m7,Sym10,Sym9,Sym8,Sym8,Sym3,11,Sym10,Sym6,Sym3,Sym10,Sym10,Sym8,Sym8,Sym10,Sym9,Sym5,Sym5,Sym8,S
+ym8,Sym9,Sym9,Sym7,Sym7,Sym3,Sym8,Sym6,Sym6,Sym2,Sym2,Sym7,Sym7,Sym9,Sym9,Sym5,Sym5,Sym1,Sym10,Sy
+m10,Sym7,Sym7,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym3,Sym3, Sym8,Sym8,Sym9,Sym9,Sym6,Sym6,Sym4,Sym4,S
+ym10,Sym10,Sym8,Sym6,Sym6,Sym9,Sym9,Sym7,Sym7,Sym10,Sym9,Sym8,Sym3,Sym10,Sym10,Sym8,Sym8,Sym9,Sy
+m9,Sym5,Sym5,Sym7,Sym8,Sym9,Sym4,Sym1,Sym7,Sym7,Sym3,Sym8,Sym6,Sym6,Sym2,Sym2,Sym7,Sym7,Sym9,Sym
+9,Sym5,Sym5,Sym10,Sym9, Sym7,Sym7,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym8,Sym7,Sym6,Sy
+m10,Sym9,Sym9,Sym6,Sym6,Sym4,Sym4,Sym7,Sym10,Sym10,Sym6,Sym6,Sym9,Sym9,Sym7,Sym7,Sym1,Sym10,Sym9,
+Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym8,Sym8,Sym9,Sym9,Sym5,Sym5,Sym8,Sym8,Sym9,Sym10,Sy m7,Sym7,Sym
+3,Sym8,Sym6,Sym6,Sym2,Sym2,Sym8,Sym7,Sym9,Sym9,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym10,Sy
+m10,Sym2,Sym2,Sym1,Sym3,Sym8,Sym9,Sym9,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym8,Sym6,Sym6,Sym9,Sym4,S
+ym7,Sym9,Sym1,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym10 ,Sym10,Sym8,Sym9,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym8,Sym8,Sym6,Sym6,Sym2,Sym2,Sym7,Sym7,Sym9,Sym4,Sym5,Sym5,Sym10,Sym1
+0,Sym7,Sym8,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym9,Sym4,Sym8,Sym6,Sym6,Sym10,Sym10,S
+ym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym 9,Sym9,Sym6,Sym8,Sym8,Sym5,Sym5,Sy
+m10,Sym10,Sym3,Sym9,Sym7,Sym7,Sym9,Sym9,Sym4,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym8,Sym9,Sym9,Sym7,
+Sym7,Sym2,Sym2,Sym8,Sym7,Sym3,Sym3,Sym10,Sym10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2]  
+[Sym1,Sym9,Sym9,Sym7,Sym7,Sym10,Sym10,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym6,Sy
+m6,Sym4,Sym4,Sym7,Sym7,Sym2,Sym2,Sym5,Sym5,Sym8,Sym8,Sym4,Sym4,Sym2,Sym2,Sym9,Sym9,Sym4,Sym4,Sym
+6,Sym6,Sym8,Sym5,Sym5,Sym9,Sym10,Sym3,Sym3,Sym9,Sym7,Sym8,Sym8, Sym6,Sym6,Sym3,Sym3,Sym10,Sym10,Sy
+m2,Sym2,Sym8,Sym9,Sym10,Sym7,Sym7,Sym1,Sym9,Sym9,Sym7,Sym7,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym5,S
+ym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym6,Sym6,Sym4,Sym4,Sym7,Sym7,Sym2,Sym2,Sym5,Sym5,Sym8,Sym8,S
+ym4,Sym4,Sym2,Sym2,Sym7,Sym7 ,Sym4,Sym4,Sym9,Sym6,Sym6,Sym5,Sym5,Sym9,Sym10,Sym3,Sym3,Sym9,Sym10,S
+ym8,Sym8,Sym6,Sym6,Sym3,Sym3,Sym10,Sym10,Sym2,Sym2,Sym6,Sym9,Sym10,Sym7,Sym7,Sym1,Sym9,Sym9,Sym7,
+Sym7,Sym10,Sym10,Sym8,Sym8,Sym6,Sym10,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7, Sym6,Sy
+m6,Sym4,Sym4,Sym7,Sym7,Sym1,Sym2,Sym2,Sym5,Sym5,Sym8,Sym8,Sym4,Sym4,Sym2,Sym2,11,Sym7,Sym7,Sym4,S
+ym4,Sym8,Sym6,Sym6,Sym5,Sym5,Sym9,Sym10,Sym3,Sym3,Sym9,Sym7,Sym8,Sym8,Sym6,Sym6,Sym1,Sym3,Sym3,Sy
+m10,Sym10,Sym2,Sym2,Sym10,Sym10,Sym7,Sym7,Sym9,Sym9,Sym 7,Sym7,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sy
+m5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym1,Sym6,Sym6,Sym4,Sym4,Sym7,Sym7,Sym2,Sym2,Sym5,Sym5,Sym8,Sym8,Sy
+m4,Sym4,Sym2,Sym2,Sym9,Sym4,Sym4,Sym6,Sym6,Sym9,Sym5,Sym5,Sym10,Sym10,Sym3,Sym3,Sym1,Sym9,Sym9,Sy
+m8,Sym6,Sym6,Sym3,Sym 10,Sym9,Sym2,Sym2,Sym8,Sym6,Sym10,Sym10,Sym7,Sym7,Sym8,Sym8,Sym7,Sym7,Sym10,
+Sym10,Sym8,Sym8,Sym8,Sym3,Sym10,Sym6,Sym3,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym1,Sym7,Sym7,Sym6,Sy
+m6,Sym4,Sym4,Sym7,Sym7,Sym2,Sym2,Sym5,Sym5,Sym10,Sym8,Sym8,Sym4,Sym4,Sym2,Sym2,Sym7, Sym7,Sym4,Sy
+m4,Sym6,Sym6,Sym9,Sym5,Sym5,Sym10,Sym10,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym3,Sym3,Sym10,S
+ym10,Sym2,Sym2,Sym6,Sym9,Sym9,Sym7,Sym7,Sym1,Sym9,Sym9,Sym7,Sym7,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,
+Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym6,Sym 6,Sym4,Sym4,Sym7,Sym7,Sym2,Sym2,Sym10,Sym5,Sym
+5,Sym8,Sym8,Sym1,Sym4,Sym4,Sym2,Sym2,Sym8,Sym7,Sym7,Sym4,Sym4,Sym6,Sym6,Sym9,Sym5,Sym5,Sym10,Sym1
+0,Sym3,Sym3,Sym9,Sym4,Sym8,Sym8,Sym6,Sym6,Sym3,Sym3,Sym10,Sym10,Sym2,Sym2,Sym8,Sym9,Sym9,Sym7,Sym
+7,Sym1,Sym3,Sym3 ,Sym9,Sym7,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym
+5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym8,Sym8,Sym5,Sym5,Sym1,Sym10,Sym10,Sym4,Sym9,Sym7,Sym7,Sym9,Sym9,Sym
+4,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym5,Sym9,Sym4,Sym7,Sym7,Sym2,Sym2,Sym8,Sym8 ,Sym3,Sym3,Sym10,Sy
+m10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2]  
+[Sym1,Sym8,Sym8,Sym5,Sym5,Sym10,Sym9,Sym6,Sym6,Sym3,Sym3,Sym9,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,
+Sym4,Sym4,Sym10,Sym10,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym4,Sym4,Sym1,Sym10,Sym10,Sym8,Sym8,Sym3,Sy
+m3,Sym10,Sym10,11,Sym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym8,Sym5,Sym5, Sym4,Sym4,Sym10,Sym10,Sym7,Sym7,Sy
+m9,Sym9,Sym10,Sym5,Sym5,Sym2,Sym2,Sym10,Sym10,Sym2,Sym2,Sym1,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym
+6,Sym6,Sym3,Sym3,Sym10,Sym9,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym4,Sym4,Sym10,Sym10,Sym9,Sym9,Sym8,Sy
+m6,Sym6,Sym4,Sym4,Sym9,Sym10, Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym6,S
+ym5,Sym5,Sym4,Sym4,Sym10,Sym10,Sym7,Sym7,Sym9,Sym9,Sym10,Sym5,Sym5,Sym2,Sym2,Sym10,Sym10,Sym2,Sy
+m2,Sym1,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym3,Sym3,Sym10,Sym9,Sym5,Sym5,Sym8,Sym8,S ym9,S
+ym9,Sym4,Sym4,Sym10,Sym10,Sym9,Sym9,Sym1,Sym8,Sym8,Sym6,Sym6,Sym4,Sym4,Sym10,Sym9,Sym8,Sym8,Sym3,
+Sym3,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,11,Sym3,Sym3,Sym8,Sym5,Sym5,Sym4,Sym4,Sym10,Sym10,Sym7,Sym7,
+Sym9,Sym9,Sym10,Sym5,Sym5,Sym2,Sym2,Sym10,Sym10,Sym2,Sym2 ,Sym1,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sy
+m6,Sym6,Sym3,Sym3,Sym9,Sym9,Sym5,Sym5,Sym8,Sym8,Sym10,Sym10,Sym4,Sym4,Sym10,Sym10,Sym9,Sym9,Sym8,
+Sym10,Sym6,Sym1,Sym4,Sym4,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym3,Sy
+m3,Sym5,Sym5,Sym4,Sym4 ,Sym10,Sym10,Sym7,Sym7,Sym9,Sym9,Sym8,Sym5,Sym5,Sym2,Sym2,Sym10,Sym10,Sym2,
+Sym2,Sym1,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym3,Sym3,Sym9,Sym9,Sym5,Sym5,Sym8,Sym8,Sym1,
+Sym9,Sym9,Sym4,Sym4,Sym10,Sym10,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10, Sym8,Sym8,Sy
+m6,Sym3,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym10,Sym5,Sym5,Sym4,Sym4,Sym10,Sym10,Sym7,Sym
+7,Sym9,Sym9,Sym6,Sym5,Sym5,Sym2,Sym2,Sym10,Sym10,Sym2,Sym2,Sym1,Sym8,Sym6,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym3,Sym3,Sym9,Sym9,Sym5,Sym5,Sym8,Sym10,Sym9,Sym9,Sym4,Sym4,Sym10,Sym10,Sym9,Sym9,Sym8,
+Sym8,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym3,Sy
+m3,Sym8,Sym5,Sym5,Sym4,Sym4,Sym10,Sym10,Sym7,Sym7,Sym9,Sym9,Sym 10,Sym5,Sym5,Sym2,Sym2,Sym10,Sym1
+0,Sym2,Sym2,Sym1,Sym3,Sym3,Sym4,Sym9,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym
+7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym4,Sym8,Sym8,Sym1,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym
+4,Sym9,Sym9,Sym5,Sym5,Sym10,S ym10,Sym6,Sym6,Sym5,Sym9,Sym9,Sym7,Sym2,Sym2,Sym8,Sym8,Sym4,Sym3,Sym
+10,Sym10,Sym6,Sym6,Sym9,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2]  
+[Sym1,Sym10,Sym10,Sym2,Sym2,Sym8,Sym8,Sym6,Sym6,Sym10,Sym8,Sym7,Sym7,Sym5,Sym5,Sym10,Sym10,Sym9,S
+ym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym10,Sym10,Sym8,Sym1,Sym9,Sym9,Sym6,Sym6,Sym10,Sym4,Sym4,Sym1
+0,Sym10,Sym3,Sym3,Sym7,Sym7,Sym8,Sym8,Sym3,Sym3,Sym9,Sym9,Sym8, Sym8,Sym7,Sym4,Sym4,Sym5,Sym5,Sym1
+0,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym9,Sym9,Sym1,Sym10,Sym10,Sym2,Sym2,Sym8,Sym8,Sym6,Sym6,Sy
+m10,Sym10,Sym7,Sym7,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym8,Sym7,Sym5,Sym5,Sym8,Sym8,Sym10,Sym10,Sy
+m7,Sym8,Sym9,Sym9,Sym1,Sym6,S ym6,Sym5,Sym4,Sym4,Sym8,Sym8,Sym3,Sym3,Sym7,Sym7,Sym10,Sym10,Sym3,Sy
+m3,Sym9,Sym9,Sym8,Sym8,Sym4,Sym4,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym9,Sym9,Sy
+m1,Sym8,Sym10,Sym2,Sym2,Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym5,Sym5,Sym10,Sym10,Sym 9,Sym
+9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym10,Sym10,Sym1,Sym8,Sym8,Sym9,Sym9,Sym6,Sym6,Sym7,Sym4,Sym4,Sym
+8,Sym10,11,Sym3,Sym3,Sym7,Sym7,Sym8,Sym8,Sym3,Sym3,Sym9,Sym9,Sym10,Sym8,Sym8,Sym4,Sym4,Sym10,Sym1
+0,Sym5,Sym5,Sym10,Sym10,Sym8,Sym7,Sym4,Sym4,Sym8,Sym8,Sym 9,Sym9,Sym1,Sym10,Sym10,Sym2,Sym2,Sym8,S
+ym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,S
+ym10,Sym10,Sym8,Sym8,Sym9,Sym9,Sym6,Sym6,Sym6,Sym4,Sym4,Sym8,Sym3,Sym7,Sym7,Sym8,Sym10,Sym3,Sym6,
+Sym10,Sym3,Sym9,Sym9,S ym4,Sym1,Sym8,Sym8,Sym4,Sym4,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym
+8,Sym8,Sym9,Sym9,Sym10,Sym10,Sym2,Sym2,Sym8,Sym10,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym5,Sym5,Sym1,
+Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym10,Sym10,Sym8,Sym8,Sym9,Sym9,S ym5,Sym6,Sy
+m6,Sym4,Sym4,Sym8,Sym8,Sym3,Sym3,Sym7,Sym7,Sym8,Sym8,Sym3,Sym3,Sym1,Sym9,Sym9,Sym10,Sym8,Sym8,Sy
+m4,Sym4,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym9,Sym9,Sym1,Sym10,Sym10,Sym2,Sym2,
+Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym5,Sym5, Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sy
+m8,Sym8,Sym10,Sym10,Sym8,Sym8,Sym9,Sym9,Sym6,Sym6,Sym6,Sym4,Sym4,Sym8,Sym8,Sym3,Sym3,Sym7,Sym7,Sy
+m8,Sym4,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym7,Sym4,Sym4,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sy
+m8,Sym8,Sym9,Sym9, Sym1,Sym3,Sym3,Sym9,Sym9,Sym8,Sym6,Sym6,Sym10,Sym10,Sym8,Sym7,Sym4,Sym4,Sym9,Sy
+m9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym6,Sym7,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sy
+m8,Sym7,Sym9,Sym9,Sym4,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym8,Sym9,Sym9,Sym7,Sym7, Sym2,Sym2,Sym8,Sy
+m7,Sym3,Sym3,Sym10,Sym10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2]  
+[Sym3,Sym9,Sym9,Sym8,Sym8,Sym10,Sym10,Sym1,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym1
+0,Sym10,Sym9,Sym9,Sym7,Sym7,Sym8,Sym8,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sy
+m7,Sym6,Sym6,Sym4,Sym4,Sym3,Sym3,Sym1,Sym5,Sym5,Sym8,Sym8,Sym6 ,Sym6,Sym3,Sym3,Sym5,Sym5,Sym10,Sy
+m10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym2,Sym2,Sym3,Sym9,Sym9,Sym7,Sym8,Sym10,Sym10,Sym5,Sym5,Sym8,S
+ym8,Sym9,Sym9,Sym10,Sym8,Sym6,Sym6,Sym10,Sym10,Sym1,Sym9,Sym9,Sym7,Sym7,Sym8,Sym8,Sym6,Sym6,Sym3,
+Sym3,Sym5,Sym5,Sym10,Sym10,S ym9,Sym9,Sym7,Sym7,Sym6,Sym6,Sym4,Sym4,Sym3,Sym3,Sym1,Sym5,Sym5,Sym7,
+Sym8,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym2,Sym2,Sym9,Sym9,
+Sym8,Sym8,Sym10,Sym10,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym9,S ym9,Sy
+m7,Sym7,Sym8,Sym8,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,11,Sym10,Sym8,Sym9,Sym9,Sym7,Sym7,Sym6,Sym6,Sym4,
+Sym4,Sym3,Sym3,Sym1,Sym5,Sym5,Sym7,Sym7,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym10,Sym1,Sym
+4,Sym4,Sym8,Sym8,Sym2,Sym2,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8, Sym10,Sym10,Sym5,Sym5,Sym8,Sym8,Sym9,Sym
+9,Sym7,Sym8,Sym6,Sym6,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym10,Sym8,Sym6,Sym6,Sym5,Sym5,Sym10,Sym10,
+Sym9,Sym9,Sym7,Sym7,Sym6,Sym6,Sym4,Sym4,Sym3,Sym3,Sym1,Sym5,Sym5,Sym7,Sym7,Sym6,Sym6,Sym3,Sym3,Sy
+m5,Sym5,Sym10,Sym10,Sy m7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym2,Sym2,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym10,S
+ym10,Sym5,Sym5,Sym8,Sym10,Sym9,Sym9,Sym8,Sym8,Sym1,Sym6,Sym6,Sym10,Sym8,Sym9,Sym9,Sym7,Sym7,Sym8,
+Sym8,Sym6,Sym6,Sym3,Sym3,Sym9,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym6,Sym6,Sy m4,Sym4,Sym3,Sym3,Sym1,Sym5,Sym5,Sym7,Sym7,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,
+Sym8,Sym2,Sym2,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym10,Sym10,Sym5,Sym5,Sym8,Sym7,Sym9,Sym9,Sym8,Sym8,
+Sym6,Sym6,Sym10,Sym10,Sym9,Sym4,Sym7,Sym7,Sym8,Sym8,Sym6,Sym6, Sym3,Sym3,Sym5,Sym5,Sym5,Sym10,Sym
+10,Sym1,Sym9,Sym4,Sym8,Sym7,Sym6,Sym6,Sym4,Sym4,Sym3,Sym3,Sym5,Sym5,Sym7,Sym7,Sym6,Sym6,Sym3,Sym3
+,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym2,Sym2,Sym1,Sym3,Sym3,Sym9,Sym9,Sym8,Sym6
+,Sym6,Sym10,Sym10,Sym7,Sym7, Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym7,Sym8
+,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym1,Sym7,Sym7,Sym9,Sym9,Sym9,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sy
+m8,Sym4,Sym9,Sym7,Sym8,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym6,Sym6,Sym4,Sym4,Sym10 ,Sym10,
+Sym2,Sym2]  Reelset Low  
+[Sym1,Sym3,Sym3,Sym10,Sym9,Sym8,Sym8,Sym6,Sym6,Sym10,Sym9,Sym7,Sym8,Sym4,Sym4,Sym9,Sym9
+,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym7,Sym8,Sym5,Sym5,Sym10,Sym10,Sym1,Sym9,Sym9
+,Sym7,Sym7,Sym9,Sym9,Sym3,Sym5,Sym5,Sym10,Sym10,Sym7,Sym6,Sym6,Sym10,Sym9,Sym8,Sym 7,Sym
+2,Sym2,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym6,Sym6,Sym4,Sym4,Sym9,Sym10,Sym2,Sym2,Sym1,Sy
+m3,Sym3,Sym9,Sym9,Sym8,Sym7,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sy
+m7,Sym5,Sym5,Sym8,Sym7,Sym9,Sym9,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sy m8,Sym7,Sy
+m4,Sym9,Sym9,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym8,Sym9,Sym9,Sym7,Sym7,Sym2,Sym2,Sym8,Sy
+m3,Sym10,Sym9,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym9,Sym9,Sym8,S
+ym8,Sym6,Sym6,Sym10,Sym10,Sym8,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,S ym5,Sym8,Sym8,1
+1,Sym9,Sym10,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym4,Sym9,Sym9,Sym5,Sy
+m5,Sym1,Sym10,Sym9,Sym6,Sym6,Sym8,Sym5,Sym9,Sym7,Sym7,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,Sy
+m10,Sym10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,S ym9,Sym9,Sym7,Sym8,
+Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,
+Sym9,Sym7,Sym8,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym8,Sym9,Sym9,Sym3,Sym5,Sym5,Sym1
+0,Sym10,Sym6,Sym6,Sym4,Sym9,Sym10,Sym7,Sym7,Sym2,Sym2,Sym8,Sym8, Sym3,Sym3,Sym10,Sym10,S
+ym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym4,Sym9,Sym8,Sym8,Sym6,Sym6,S
+ym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym10,Sym1,Sym9,Sym8,
+Sym8,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym9,Sym9,Sy m4,Sym5,Sym5,Sym10,Sym10,Sy
+m6,Sym6,Sym5,Sym9,Sym9,Sym7,Sym7,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym6,Sym6,Sy
+m4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym9,Sym9,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,
+Sym7,Sym4,Sym4,Sym9,Sym10,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8 ,Sym9,Sym9,Sym7,Sym8,Sym8,Sym5,S
+ym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym10,Sym9,Sym9,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sy
+m8,Sym4,Sym9,Sym7,Sym7,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym6,Sym6,Sym4,Sym4,Sy
+m10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym9,Sym9,Sym8,S ym6,Sym6,Sym10,Sym9,Sym7,Sym7,Sym4,S
+ym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,S
+ym9,Sym9,Sym7,Sym7,Sym9,Sym9,Sym3,Sym5,Sym5,Sym10,Sym10,Sym8,Sym6,Sym6,Sym9,Sym4,Sym7,S
+ym7,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10, Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym
+2] 
+[Sym1,Sym3,Sym3,Sym8,Sym8,Sym9,Sym10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym3,Sym6,Sym6,Sym
+9,Sym9,Sym7,Sym7,Sym10,Sym10,Sym8,Sym3,Sym9,Sym10,Sym8,Sym7,Sym10,Sym6,Sym9,Sym9,Sym5,S
+ym5,Sym8,Sym8,Sym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym8,Sym8,Sym6,Sym6,Sym2,Sym2,Sym7,Sym 7,Sy
+m9,Sym9,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,
+Sym8,Sym8,Sym9,Sym9,Sym6,Sym6,Sym4,Sym4,Sym8,Sym10,Sym10,Sym6,Sym6,Sym9,Sym10,Sym7,Sym
+8,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym8,Sym8,Sym9,Sym9,Sym5,Sym5,Sym 8,Sym8,S
+ym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym8,Sym8,Sym6,Sym6,Sym2,Sym2,Sym7,Sym7,Sym10,Sym9,Sym5,Sy
+m5,Sym10,Sym10,Sym7,Sym8,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym8,Sym8,Sym9,
+Sym9,Sym6,Sym6,Sym4,Sym4,Sym7,Sym10,Sym10,Sym6,Sym6,Sym9,Sym9,Sym7,Sym7,Sy m10,Sym9,Sym
+8,Sym8,Sym3,11,Sym10,Sym6,Sym3,Sym10,Sym10,Sym8,Sym8,Sym10,Sym9,Sym5,Sym5,Sym8,Sym8,Sym
+9,Sym9,Sym1,Sym7,Sym7,Sym3,Sym8,Sym6,Sym6,Sym2,Sym2,Sym7,Sym7,Sym9,Sym9,Sym5,Sym5,Sym10
+,Sym10,Sym7,Sym7,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym8,S ym8,Sym9,Sym9,Sym
+6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym8,Sym6,Sym6,Sym9,Sym9,Sym7,Sym7,Sym10,Sym9,Sym8,Sym3,Sy
+m10,Sym10,Sym8,Sym8,Sym9,Sym9,Sym5,Sym5,Sym7,Sym8,Sym9,Sym4,Sym7,Sym7,Sym3,Sym8,Sym6,Sy
+m6,Sym2,Sym2,Sym7,Sym7,Sym9,Sym9,Sym5,Sym5,Sym10,Sym9,Sym7,Sym7,S ym4,Sym4,Sym10,Sym10,S
+ym2,Sym2,Sym1,Sym3,Sym3,Sym8,Sym7,Sym6,Sym10,Sym9,Sym9,Sym6,Sym6,Sym4,Sym4,Sym7,Sym10,S
+ym10,Sym6,Sym6,Sym9,Sym9,Sym7,Sym7,Sym1,Sym10,Sym9,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym
+8,Sym8,Sym9,Sym9,Sym5,Sym5,Sym8,Sym8,Sym9,Sym10,Sym7,Sym7,Sym 3,Sym8,Sym6,Sym6,Sym2,Sym2
+,Sym8,Sym7,Sym9,Sym9,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym8,Sym9,Sym9,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym8,Sym6,Sym6,Sym9,Sym4,Sym7,Sy
+m9,Sym1,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym8,Sym9,Sym7,Sym5,Sym5,Sym8,Sym8,
+Sym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym8,Sym8,Sym6,Sym6,Sym2,Sym2,Sym7,Sym7,Sym9,Sym4,Sy m5,Sy
+m5,Sym10,Sym10,Sym7,Sym8,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym9,Sym4,Sym8,
+Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,
+Sym9,Sym6,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym3,Sym9,Sym7,Sym7,Sym9,Sym9,Sym4, Sym5,Sym5,
+Sym10,Sym10,Sym6,Sym6,Sym8,Sym9,Sym9,Sym7,Sym7,Sym2,Sym2,Sym8,Sym7,Sym3,Sym3,Sym10,Sym
+10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2]  
+[Sym1,Sym9,Sym9,Sym7,Sym7,Sym10,Sym10,Sym8,Sym3,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sy
+m7,Sym6,Sym6,Sym4,Sym4,Sym7,Sym7,Sym2,Sym2,Sym5,Sym5,Sym8,Sym8,Sym4,Sym4,Sym2,Sym2,Sym
+9,Sym7,Sym1,Sym4,Sym4,Sym6,Sym6,Sym8,Sym5,Sym5,Sym9,Sym10,Sym3,Sym3,Sym9,Sym7,Sym8, Sym8
+,Sym6,Sym6,Sym3,Sym3,Sym10,Sym10,Sym2,Sym2,Sym8,Sym9,Sym10,Sym7,Sym7,Sym1,Sym9,Sym9,Sym
+7,Sym7,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym6,S
+ym6,Sym4,Sym4,Sym7,Sym7,Sym2,Sym2,Sym5,Sym5,Sym8,Sym8,Sym4,Sym4,Sym2,Sym2,Sym7 ,Sym7,Sy
+m4,Sym4,Sym9,Sym6,Sym6,Sym5,Sym5,Sym9,Sym10,Sym3,Sym3,Sym9,Sym10,Sym8,Sym8,Sym6,Sym6,Sy
+m3,Sym3,Sym10,Sym10,Sym2,Sym2,Sym6,Sym9,Sym10,Sym7,Sym7,Sym1,Sym9,Sym9,Sym7,Sym7,Sym10,
+Sym10,Sym8,Sym8,Sym6,Sym10,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7, Sym7,Sym6,Sy
+m6,Sym4,Sym4,Sym7,Sym7,Sym1,Sym2,Sym2,Sym5,Sym5,Sym8,Sym8,Sym4,Sym4,Sym2,Sym2,11,Sym7,S
+ym7,Sym4,Sym4,Sym8,Sym6,Sym6,Sym5,Sym5,Sym9,Sym10,Sym3,Sym3,Sym9,Sym7,Sym8,Sym8,Sym6,Sy
+m6,Sym3,Sym3,Sym10,Sym10,Sym2,Sym2,Sym8,Sym9,Sym10,Sym7,Sym7,Sym1,Sym9 ,Sym9,Sym7,Sym7,S
+ym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym6,Sym6,Sym
+4,Sym4,Sym7,Sym7,Sym2,Sym2,Sym5,Sym5,Sym8,Sym8,Sym4,Sym4,Sym2,Sym2,Sym9,Sym7,Sym4,Sym4,
+Sym6,Sym6,Sym9,Sym1,Sym5,Sym5,Sym10,Sym10,Sym3,Sym3,Sym9,Sym9,Sym8 ,Sym6,Sym6,Sym3,Sym1
+0,Sym9,Sym2,Sym2,Sym8,Sym6,Sym10,Sym9,Sym7,Sym7,Sym1,Sym9,Sym8,Sym7,Sym7,Sym10,Sym10,Sy
+m8,Sym8,Sym3,Sym10,Sym6,Sym3,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym6,Sym6,Sym4,S
+ym4,Sym7,Sym7,Sym2,Sym2,Sym5,Sym5,Sym10,Sym8,Sym8,Sym4,Sym4,Sy m2,Sym2,Sym7,Sym7,Sym4,Sy
+m4,Sym6,Sym6,Sym9,Sym5,Sym5,Sym10,Sym10,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym3,Sy
+m3,Sym10,Sym10,Sym2,Sym2,Sym6,Sym9,Sym9,Sym7,Sym7,Sym1,Sym9,Sym9,Sym7,Sym7,Sym10,Sym10,
+Sym8,Sym8,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7, Sym7,Sym6,Sym6,Sym4,Sym4,Sym7,
+Sym7,Sym2,Sym2,Sym10,Sym5,Sym5,Sym8,Sym8,Sym4,Sym4,Sym2,Sym2,Sym8,Sym7,Sym7,Sym4,Sym4,S
+ym6,Sym6,Sym9,Sym5,Sym5,Sym10,Sym10,Sym3,Sym3,Sym9,Sym4,Sym8,Sym8,Sym6,Sym6,Sym3,Sym3,S
+ym10,Sym10,Sym2,Sym2,Sym8,Sym9,Sym9,Sym7,Sym7,Sym1,S ym3,Sym3,Sym9,Sym7,Sym8,Sym6,Sym6,S
+ym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym8,S
+ym8,Sym5,Sym5,Sym10,Sym10,Sym4,Sym9,Sym7,Sym7,Sym9,Sym9,Sym4,Sym5,Sym5,Sym10,Sym10,Sym
+6,Sym6,Sym5,Sym9,Sym4,Sym7,Sym7,Sym2,Sym2,Sym8,S ym8,Sym3,Sym3,Sym10,Sym10,Sym6,Sym6,Sym
+4,Sym4,Sym10,Sym10,Sym2,Sym2]  
+[Sym1,Sym8,Sym8,Sym5,Sym5,Sym10,Sym9,Sym6,Sym6,Sym3,Sym3,Sym9,Sym7,Sym5,Sym5,Sym8,Sym8,
+Sym9,Sym9,Sym4,Sym4,Sym10,Sym10,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sy
+m8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym9,Sym9,Sym1,Sym7,Sym7,Sym3,Sym3,Sym8,Sym5,Sym5,Sym 4,Sy
+m4,Sym10,Sym10,Sym7,Sym7,Sym9,Sym9,Sym10,Sym5,Sym5,Sym2,Sym2,Sym10,Sym10,Sym2,Sym2,Sym
+1,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym3,Sym3,Sym10,Sym9,Sym5,Sym5,Sym8,Sym8,Sy
+m9,Sym9,Sym4,Sym4,Sym10,Sym10,Sym9,Sym9,Sym8,Sym6,Sym6,Sym4,Sym4,Sym9,Sym10,Sym 8,Sym8,S
+ym3,Sym3,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym6,Sym5,Sym5,Sym4,Sym4,Sym10,Sym1
+0,Sym7,Sym7,Sym9,Sym9,Sym10,Sym5,Sym5,Sym2,Sym2,Sym10,Sym10,Sym2,Sym2,Sym1,Sym8,Sym8,Sy
+m5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym3,Sym3,Sym10,Sym9,Sym5,Sym5,Sym8,Sym8,Sym9 ,Sym9,Sym4,S
+ym4,Sym10,Sym10,Sym9,Sym9,Sym1,Sym8,Sym8,Sym6,Sym6,Sym4,Sym4,Sym10,Sym9,Sym8,Sym8,Sym3,
+Sym3,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,11,Sym3,Sym3,Sym8,Sym5,Sym5,Sym4,Sym4,Sym10,Sym10,
+Sym7,Sym7,Sym9,Sym9,Sym10,Sym5,Sym5,Sym2,Sym2,Sym10,Sym10,Sym2,Sym2,Sy m1,Sym8,Sym8,Sym
+5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym3,Sym3,Sym9,Sym9,Sym5,Sym5,Sym8,Sym8,Sym10,Sym9,Sym4,Sy
+m4,Sym10,Sym10,Sym9,Sym9,Sym8,Sym10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym5,Sym5,Sym4,Sym4,Sym10,Sym10,Sym7,Sym7,S
+ym9,Sym9,Sym8,Sym5,Sym5,Sym2,Sym2,Sym10,Sym10,Sym2,Sym2,Sym1,Sym8,Sym8,Sym5,Sym5,Sym10,
+Sym10,Sym6,Sym6,Sym3,Sym3,Sym9,Sym9,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym4,Sym4,Sym10, Sym1
+0,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym8,Sym8,Sym6,Sym3,Sym10,Sym10,S
+ym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym10,Sym5,Sym5,Sym4,Sym4,Sym10,Sym10,Sym7,Sym7,Sym9,Sym9,
+Sym6,Sym5,Sym5,Sym2,Sym2,Sym10,Sym10,Sym2,Sym2,Sym1,Sym8,Sym6,Sym5,Sym5,Sym10, Sym10,Sy
+m6,Sym6,Sym3,Sym3,Sym9,Sym9,Sym5,Sym5,Sym8,Sym10,Sym9,Sym9,Sym4,Sym4,Sym10,Sym10,Sym9,S
+ym9,Sym8,Sym8,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym9,Sym
+9,Sym7,Sym7,Sym3,Sym3,Sym8,Sym5,Sym5,Sym4,Sym4,Sym10,Sym10,Sym7,Sym7,Sym9,S ym9,Sym10,Sy
+m5,Sym5,Sym2,Sym2,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym4,Sym9,Sym8,Sym6,Sym6,Sym10,S
+ym10,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym4,Sym8,Sym8,Sy
+m5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym4,Sym9,Sym9,Sym5,Sym5,Sym10 ,Sym10,Sym6,Sym6,
+Sym5,Sym9,Sym9,Sym7,Sym2,Sym2,Sym8,Sym8,Sym4,Sym3,Sym10,Sym10,Sym6,Sym6,Sym9,Sym4,Sym4,
+Sym10,Sym10,Sym2,Sym2]  
+[Sym1,Sym10,Sym10,Sym2,Sym2,Sym8,Sym8,Sym6,Sym6,Sym10,Sym8,Sym7,Sym7,Sym5,Sym5,Sym10,Sy
+m10,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym10,Sym10,Sym8,Sym7,Sym9,Sym9,Sym6,Sym6,S
+ym10,Sym4,Sym4,Sym8,Sym10,Sym3,Sym3,Sym7,Sym7,Sym8,Sym8,Sym1,Sym3,Sym3,Sym9,Sym9,S ym8,S
+ym8,Sym7,Sym4,Sym4,Sym5,Sym5,Sym10,Sym8,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym9,Sym9,Sym1,Sy
+m10,Sym10,Sym2,Sym2,Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym5,Sym5,Sym10,Sym10,Sy
+m9,Sym9,Sym8,Sym7,Sym5,Sym5,Sym8,Sym8,Sym10,Sym10,Sym7,Sym8,Sym9,Sym9,Sym6,Sym 6,Sym5,Sy
+m4,Sym4,Sym8,Sym8,Sym3,Sym3,Sym7,Sym7,Sym10,Sym8,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym4,Sy
+m4,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym9,Sym9,Sym1,Sym8,Sym10,Sym2,S
+ym2,Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym5,Sym5,Sym10,Sym10,Sym9,S ym9,Sym7,Sym
+7,Sym5,Sym5,Sym8,Sym8,Sym10,Sym10,Sym1,Sym8,Sym8,Sym9,Sym9,Sym6,Sym6,Sym7,Sym4,Sym4,Sym
+8,Sym10,11,Sym3,Sym3,Sym7,Sym7,Sym8,Sym8,Sym3,Sym3,Sym9,Sym9,Sym10,Sym8,Sym8,Sym4,Sym4,S
+ym10,Sym6,Sym5,Sym5,Sym10,Sym10,Sym8,Sym7,Sym4,Sym4,Sym8,Sym8,Sym9,Sy m9,Sym1,Sym10,Sym
+10,Sym2,Sym2,Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym5,Sym5,Sym8,Sym10,Sym4,Sym9,S
+ym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym10,Sym10,Sym8,Sym8,Sym9,Sym9,Sym6,Sym6,Sym5,Sym4,Sym4,S
+ym8,Sym3,Sym7,Sym7,Sym8,Sym10,Sym3,Sym6,Sym10,Sym3,Sym9,Sym9,Sym4 ,Sym8,Sym8,Sym4,Sym4,S
+ym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym9,Sym9,Sym1,Sym10,Sym10,Sym2,Sym
+2,Sym8,Sym10,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym5,Sym5,Sym10,Sym8,Sym9,Sym9,Sym7,Sym7,S
+ym5,Sym5,Sym8,Sym8,Sym10,Sym10,Sym8,Sym8,Sym9,Sym9,Sym5,Sym6, Sym6,Sym4,Sym4,Sym8,Sym8,S
+ym3,Sym3,Sym7,Sym7,Sym8,Sym8,Sym3,Sym3,Sym9,Sym9,Sym10,Sym8,Sym8,Sym4,Sym4,Sym5,Sym5,Sy
+m10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym9,Sym9,Sym1,Sym10,Sym10,Sym2,Sym2,Sym8,Sym8,
+Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym5,Sym5,Sym10,Sym10,Sy m9,Sym9,Sym7,Sym7,Sym5,Sym5,Sy
+m8,Sym8,Sym10,Sym10,Sym8,Sym8,Sym9,Sym9,Sym6,Sym6,Sym6,Sym4,Sym4,Sym8,Sym8,Sym3,Sym3,Sy
+m7,Sym7,Sym8,Sym4,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym7,Sym4,Sym4,Sym5,Sym5,Sym10,Sym10,Sy
+m7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym9,Sym9,Sym1,Sym3,Sym3 ,Sym9,Sym9,Sym8,Sym6,Sym6,Sym10,Sy
+m10,Sym8,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym6,Sym7,Sy
+m8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym8,Sym7,Sym9,Sym9,Sym4,Sym5,Sym5,Sym10,Sym10,
+Sym6,Sym6,Sym8,Sym9,Sym9,Sym7,Sym7,Sym2,Sym2,Sym8 ,Sym7,Sym3,Sym3,Sym10,Sym10,Sym6,Sym6,
+Sym4,Sym4,Sym10,Sym10,Sym2,Sym2]  
+[Sym3,Sym9,Sym9,Sym8,Sym7,Sym1,Sym10,Sym10,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym8,Sym8,Sym6
+,Sym6,Sym10,Sym8,Sym9,Sym9,Sym7,Sym7,Sym8,Sym8,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,Sym10,Sym1
+0,Sym9,Sym9,Sym7,Sym7,Sym6,Sym6,Sym4,Sym4,Sym3,Sym3,Sym1,Sym5,Sym5,Sym8,Sym7,Sym6, Sym6,
+Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym2,Sym2,Sym3,Sym9,Sym9,
+Sym7,Sym8,Sym10,Sym10,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym10,Sym8,Sym6,Sym6,Sym10,Sym10,Sy
+m9,Sym9,Sym7,Sym7,Sym8,Sym8,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym9,Sy m9,Sym7,Sy
+m7,Sym6,Sym6,Sym4,Sym4,Sym3,Sym3,Sym1,Sym5,Sym5,Sym7,Sym8,Sym6,Sym6,Sym3,Sym3,Sym5,Sym
+5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym2,Sym2,Sym9,Sym9,Sym8,Sym8,Sym10,Sym10,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym8,S
+ym8,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,11,Sym10,Sym8,Sym9,Sym9,Sym7,Sym7,Sym6,Sym6,Sym4,Sym4
+,Sym3,Sym3,Sym1,Sym5,Sym5,Sym7,Sym7,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym8 ,Sym7
+,Sym4,Sym4,Sym8,Sym8,Sym2,Sym2,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym10,Sym10,Sym5,Sym5,Sym8
+,Sym8,Sym9,Sym9,Sym7,Sym8,Sym6,Sym6,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym10,Sym8,Sym6,Sym
+6,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym6,Sym6,Sym4,Sym4,Sym3,Sym3,Sym 1,Sym5,Sym
+5,Sym7,Sym4,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym
+2,Sym2,Sym1,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym10,Sym10,Sym5,Sym5,Sym8,Sym10,Sym9,Sym9,Sy
+m8,Sym8,Sym6,Sym6,Sym10,Sym8,Sym9,Sym9,Sym7,Sym7,Sym8,Sym8,Sym6,Sym6,Sym 3,Sym3,Sym9,Sy
+m5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym6,Sym6,Sym4,Sym4,Sym3,Sym3,Sym1,Sym5,Sym5,Sy
+m7,Sym7,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym2,Sy
+m2,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym10,Sym10,Sym5,Sym5,Sym8,Sym7,Sym 9,Sym9,Sym8,Sym8,Sy
+m6,Sym6,Sym10,Sym10,Sym9,Sym4,Sym7,Sym7,Sym8,Sym8,Sym6,Sym6,Sym3,Sym3,Sym7,Sym5,Sym5,Sy
+m10,Sym10,Sym9,Sym4,Sym8,Sym7,Sym6,Sym6,Sym4,Sym4,Sym3,Sym3,Sym1,Sym5,Sym5,Sym7,Sym7,Sy
+m6,Sym6,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym 8,Sym8,Sym2,Sym2,Sym1,Sy
+m3,Sym3,Sym9,Sym9,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sy
+m5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym7,Sym8,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym9,Sy
+m9,Sym8,Sym5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym8,Sym4,Sym9,Sym 7,Sym8,Sym2,Sym2,Sym8,Sym8,Sy
+m3,Sym3,Sym10,Sym10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2]  
+ 
+Reelset BB  
+[Sym2,Sym2,Sym6,Sym6,Sym1,Sym3,Sym3,Sym8,Sym8,Sym1,Sym10,Sym10,Sym3,Sym3,Sym1]  
+[Sym9,Sym9,Sym7,Sym7,Sym1,Sym10,Sym10,Sym9,Sym9,Sym1,Sym4,Sym4,Sym5,Sym5,Sym1]  
+[Sym2,Sym2,Sym4,Sym4,Sym1,Sym3,Sym3,Sym5,Sym5,Sym1,Sym7,Sym7,Sym5,Sym5,Sym1]  
+[Sym3,Sym3,Sym6,Sym6,Sym1,Sym8,Sym8,Sym9,Sym9,Sym1,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,Sym6,S
+ym6,Sym8,Sym8,Sym9,Sym9,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,Sym6,Sym6,Sym8,Sym8,Sym9,Sym9,Sy
+m2,Sym2,Sym8,Sym8,Sym1,Sym3,Sym3,Sym6,Sym6,Sym1,Sym8,Sym8,Sym9,Sym9,Sym1,Sym2,Sym2, Sym
+8,Sym8,Sym3,Sym3,Sym6,Sym6,Sym8,Sym8,Sym9,Sym9,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,Sym6,Sym6,
+Sym8,Sym8,Sym9,Sym9,Sym2,Sym2,Sym8,Sym8,Sym1]  
+[Sym10,Sym9,Sym9,Sym2,Sym1,Sym8,Sym7,Sym4,Sym4,Sym1,Sym9,Sym9,Sym7,Sym5,Sym1]  
+[Sym10,Sym10,Sym8,Sym8,Sym7,Sym7,Sym5,Sym5,Sym4,Sym6,Sym6,Sym8,Sym8,Sym7,Sym7,Sym6,Sym6
+,Sym5,Sym5,Sym4,Sym6,Sym1,Sym10,Sym10,Sym8,Sym8,Sym5,Sym5,Sym4,Sym8,Sym8,Sym7,Sym7,Sym6
+,Sym6,Sym5,Sym5,Sym4,Sym6,Sym1,Sym5,Sym5,Sym4,Sym6,Sym6,Sym10,Sym10,Sym8,Sym8,Sym7 ,Sym7
+,Sym6,Sym6,Sym5,Sym5,Sym4,Sym6,Sym1,Sym10,Sym10,Sym8,Sym8,Sym6,Sym7,Sym7,Sym5,Sym5,Sym4
+,Sym6,Sym6,Sym10,Sym10,Sym8,Sym8,Sym7,Sym7,Sym6,Sym6,Sym5,Sym5,Sym4,Sym6,Sym1,Sym10,Sym
+10,Sym8,Sym6,Sym6,Sym7,Sym7,Sym5,Sym5,Sym4,Sym6,Sym6,Sym10,Sym10,Sym8,Sym8,Sy m7,Sym7,Sy
+m6,Sym6,Sym5,Sym5,Sym4,Sym6,Sym1]  
+ 
+ 
+ 
+ 
+ 
+  
+Reelset Free Spins  
+[Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym8
+,Sym8,11,Sym5,Sym5,Sym10,Sym10,Sym10,Sym9,Sym9,Sym9,Sym7,Sym7,Sym9,Sym9,Sym3,Sym5,Sym5,S
+ym10,Sym10,Sym7,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,11, Sym10,
+Sym10,Sym6,Sym6,Sym4,Sym4,Sym9,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym6,
+Sym6,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,
+Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym4,Sym9,Sym9,Sym5,Sym5 ,Sym10,Sym
+10,Sym6,Sym6,Sym8,Sym9,Sym9,Sym7,Sym7,Sym2,Sym2,Sym8,Sym8,Sym10,Sym9,Sym6,Sym6,Sym4,Sym
+4,Sym10,Sym10,Sym2,Sym2,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym8,Sym6,Sym6,Sym6,Sym10,Sym10,S
+ym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,11,Sym9,Sym9, Sym8,Sym8,Sym5,
+Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym5,Sym5,Sym10,Sym10,Sym6,Sy
+m6,Sym8,Sym8,Sym9,Sym7,Sym7,Sym2,Sym2,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym6,Sym6,Sym4,Sy
+m4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym6,Sym 6,Sym10,Sym10,11,Sy
+m7,Sym7,Sym4,Sym4,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym7,Sym8,Sym5,Sym
+5,Sym10,Sym10,Sym9,Sym9,Sym8,Sym8,Sym9,Sym9,Sym9,Sym5,Sym5,Sym8,Sym8,Sym3,Sym3,Sym10,Sy
+m10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym2,Sym2,Sym1,Sym3,Sym3,Sym 9,Sym9]  
+[Sym3,Sym3,Sym8,Sym8,Sym10,Sym10,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym10,Sym6,Sym6,Sym9,S
+ym9,Sym7,Sym7,Sym10,Sym10,Sym8,Sym8,Sym9,Sym9,Sym7,Sym7,Sym6,Sym6,Sym10,Sym10,Sym7,Sym
+7,Sym8,Sym8,Sym9,Sym9,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym8,Sym8,S ym6,
+Sym6,Sym7,Sym7,Sym2,Sym2,Sym7,Sym7,Sym9,Sym9,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,
+Sym10,Sym10,Sym2,Sym2,Sym3,Sym3,Sym8,Sym8,11,Sym9,Sym9,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,
+Sym10,Sym6,Sym6,Sym9,Sym9,Sym8,Sym8,Sym1,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym10 ,Sym10,Sy
+m8,Sym8,Sym9,Sym9,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym8,Sym8,Sym6,Sym
+6,Sym2,Sym2,Sym7,Sym7,Sym10,Sym10,Sym5,Sym5,Sym6,Sym6,Sym9,Sym9,Sym8,Sym8,Sym10,Sym10,S
+ym8,Sym8,Sym9,Sym9,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym10,Sym6,Sym6,Sym9,Sy m9,Sym7,Sym7,
+Sym1,Sym10,Sym9,Sym9,Sym8,Sym8,11,Sym10,Sym10,Sym9,Sym9,Sym9,Sym10,Sym10,Sym10,Sym8,Sym
+8,Sym9,Sym9,Sym5,Sym5,Sym5,Sym8,Sym8,Sym8,Sym9,Sym9,Sym7,Sym7,Sym3,Sym8,Sym6,Sym6,Sym2,
+Sym2,Sym7,Sym7,Sym9,Sym9,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sy m10,Sym10,Sym2,Sy
+m2,Sym1,Sym3,Sym3,Sym8,Sym8,11,Sym9,Sym9,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym10,Sym6,Sym
+6,Sym9,Sym9,Sym7,Sym7]  
+[Sym9,Sym9,Sym7,Sym7,Sym10,Sym10,Sym8,Sym8,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sy
+m6,Sym6,Sym4,Sym4,Sym7,Sym7,Sym10,Sym10,Sym6,Sym6,Sym2,Sym2,Sym5,Sym5,Sym8,Sym8,Sym4,Sy
+m4,Sym2,Sym2,Sym9,Sym7,Sym4,Sym4,Sym6,Sym6,Sym8,Sym5,Sym5,Sym9,Sym9,Sym3,Sym3,Sym7 ,Sym
+7,Sym7,Sym8,Sym8,Sym8,Sym6,Sym6,Sym3,Sym3,Sym10,Sym10,Sym2,Sym2,Sym10,Sym10,Sym10,Sym7,
+Sym7,Sym1,Sym9,Sym9,Sym7,Sym7,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sy
+m9,Sym9,Sym7,Sym7,Sym6,Sym6,Sym4,Sym4,Sym7,Sym7,Sym2,Sym2,Sym5,Sym5,Sym8,Sym8,S ym4,Sym
+4,Sym2,Sym2,Sym7,Sym7,Sym4,Sym4,11,Sym9,Sym9,Sym9,Sym6,Sym6,Sym6,Sym5,Sym5,Sym10,Sym10,S
+ym3,Sym3,Sym9,Sym10,Sym8,Sym8,Sym6,Sym6,Sym3,Sym3,Sym10,Sym10,Sym2,Sym2,Sym9,Sym9,Sym1
+0,Sym8,Sym8,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym1,Sym9,Sym9,Sym7,Sym7,Sym10, Sym10,Sym10,
+Sym8,Sym8,Sym8,11,Sym10,Sym10,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym6,
+Sym6,Sym4,Sym4,Sym7,Sym7,Sym2,Sym2,Sym5,Sym5,Sym8,Sym8,Sym4,Sym4,Sym2,Sym2,11,Sym7,Sym7
+,Sym4,Sym4,Sym6,Sym6,Sym5,Sym5,Sym10,Sym10,Sym3,Sym3,Sym9,Sym9,Sym8,Sy m8,Sym6,Sym6,Sym3
+,Sym3,Sym10,Sym10,Sym2,Sym2,Sym8,Sym8,Sym8,Sym7,Sym7,Sym1,Sym9,Sym9,Sym7,Sym7,Sym10,Sym
+10,Sym8,Sym8,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10]  
+[Sym8,Sym8,Sym5,Sym5,Sym9,Sym9,Sym6,Sym6,Sym3,Sym3,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym9,S
+ym9,Sym4,Sym4,Sym10,Sym10,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym8,Sym8,Sym3,Sym3,Sym10,Sym10,11,Sym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym5,Sym5,Sym4,Sym4,Sym10,Sym1
+0,Sym7,Sym7,Sym9,Sym9,Sym10,Sym5,Sym5,Sym2,Sym2,Sym10,Sym10,Sym2,Sym2,Sym1,Sym8,Sym8,Sy
+m5,Sym5,Sym10,Sym10,Sym6,Sym6,Sym6,Sym3,Sym3,Sym10,Sym10,Sym5,Sym5,Sym8,Sym8,Sym8, Sym9,
+Sym9,Sym4,Sym4,Sym10,Sym10,Sym9,Sym9,Sym9,Sym6,Sym6,Sym4,Sym4,Sym10,Sym10,Sym8,Sym8,Sy
+m3,Sym3,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym3,Sym3,Sym5,Sym5,Sym4,Sym4,Sym10,Sym10,Sym7,
+Sym7,Sym9,Sym9,Sym10,Sym5,Sym5,Sym2,Sym2,11,Sym10,Sym10,Sym2,Sym2,Sym1,Sym8,Sy m8,Sym5,S
+ym5,Sym10,Sym10,11,Sym6,Sym6,Sym3,Sym3,Sym10,Sym10,Sym5,Sym5,Sym8,Sym8,Sym8,Sym9,Sym9,S
+ym9,Sym4,Sym4,Sym10,Sym10,Sym10,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym4,Sym4,Sym10,Sym9,Sym
+8,Sym8,Sym3,Sym3,Sym10,Sym10,Sym9,Sym9,Sym7,Sym7,11,Sym3,Sym3,Sym5,Sym5,Sy m4,Sym4,Sym10,
+Sym10,Sym7,Sym7,Sym9,Sym9,Sym10,Sym5,Sym5,Sym2,Sym2,Sym10,Sym10,Sym2,Sym2,Sym1,Sym8,Sy
+m8,Sym5,Sym5,Sym10,Sym10,Sym10,Sym6,Sym6,Sym6,Sym3,Sym3,Sym9,Sym9,Sym5,Sym5,Sym8,Sym8,S
+ym9,Sym9,Sym4,Sym4,Sym10,Sym10,Sym9,Sym9,Sym8]  
+[Sym10,Sym10,Sym2,Sym2,Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym5,Sym5,Sym10,Sym10,
+Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,11,Sym10,Sym10,Sym8,Sym8,Sym9,Sym9,Sym6,Sym6,Sy
+m10,Sym4,Sym4,Sym10,Sym10,Sym3,Sym3,Sym7,Sym7,Sym8,Sym8,Sym3,Sym3,Sym9,Sym9,Sym8,S ym8,S
+ym8,Sym4,Sym4,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym9,Sym9,Sym1,Sym10,
+Sym10,Sym2,Sym2,Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym5,Sym5,Sym10,Sym10,Sym9,Sy
+m9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym8,Sym10,Sym10,Sym8,Sym8,Sym9,Sym9,Sym6,Sy m6,Sym4,Sy
+m4,Sym8,Sym8,Sym3,Sym3,Sym7,Sym7,Sym10,Sym10,Sym3,Sym3,Sym9,Sym9,Sym8,Sym8,Sym4,Sym4,Sy
+m5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym9,Sym9,Sym1,Sym10,Sym10,Sym2,Sym2,
+Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym10,Sym7,Sym7,Sym7,Sym5,Sym5,Sym10,Sym 10,Sym9,Sym9,Sy
+m7,Sym7,Sym5,Sym5,Sym8,Sym8,Sym10,Sym10,Sym8,Sym8,Sym9,Sym9,Sym6,Sym6,Sym6,Sym7,Sym7,Sy
+m4,Sym4,Sym8,Sym8,11,Sym3,Sym3,Sym7,Sym7,Sym8,Sym8,Sym3,Sym3,Sym9,Sym9,Sym10,Sym8,Sym8,
+Sym4,Sym4,Sym10,Sym6,Sym5,Sym5,11,Sym10,Sym10,Sym8,Sym8,Sym4,Sym4,S ym8,Sym8,Sym9,Sym9,S
+ym1,Sym10,Sym10,Sym10,Sym2,Sym2,Sym8,Sym8,Sym6,Sym6,Sym10,Sym10,Sym7,Sym7,Sym5,Sym5,Sy
+m10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym5,Sym5,Sym8,Sym8]  
+[Sym9,Sym9,Sym8,Sym8,Sym10,Sym10,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym8,Sym8,Sym6,Sym6,Sym1
+0,Sym10,Sym9,Sym9,Sym7,Sym7,Sym8,Sym8,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym9,Sy
+m9,11,Sym7,Sym7,Sym6,Sym6,Sym4,Sym4,Sym3,Sym3,Sym1,Sym5,Sym5,Sym7,Sym7,Sym6,Sym6,S ym3,S
+ym3,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym2,Sym2,Sym3,Sym9,Sym9,Sym8,S
+ym8,Sym10,Sym10,Sym5,Sym5,Sym8,Sym8,Sym9,Sym9,Sym10,Sym8,Sym6,Sym6,Sym10,Sym10,Sym9,Sy
+m9,Sym7,Sym7,Sym8,Sym8,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym9,Sym9,Sym 7,Sym7,Sy
+m6,Sym6,Sym4,Sym4,Sym3,Sym3,Sym1,Sym5,Sym5,Sym8,Sym8,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,Sym
+10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym2,Sym2,Sym9,Sym9,Sym8,Sym8,Sym10,Sym10,Sym5,S
+ym5,Sym8,Sym8,Sym10,Sym10,Sym7,Sym7,Sym6,Sym6,Sym9,Sym9,Sym9,Sym8,Sym8,Sym 6,Sym6,Sym10,
+Sym10,Sym9,Sym9,Sym7,Sym7,Sym8,Sym8,Sym8,Sym6,Sym6,Sym6,Sym3,Sym3,Sym5,Sym5,11,Sym10,Sy
+m10,Sym10,Sym9,Sym9,Sym7,Sym7,Sym6,Sym6,Sym4,Sym4,Sym3,Sym3,Sym5,Sym5,Sym7,Sym7,Sym6,Sy
+m6,Sym3,Sym3,Sym5,Sym5,Sym10,Sym10,Sym7,Sym7,Sym4,Sym4,Sym8,Sym8,Sym2 ,Sym2,Sym3,Sym3,Sy
+m9,Sym9,Sym8,Sym8,Sym10,Sym10,Sym5,Sym5,Sym8,Sym8,11,Sym9,Sym9,Sym7,Sym8,Sym6,Sym6,Sym1
+0,Sym10,Sym9,Sym9,Sym7,Sym7,Sym10,Sym10,Sym6,Sym6,Sym5,Sym5]  
+ 
+ 
+ 
+ 
+ 
+ 
+
+================ SYMBOL CONFIGURATION (CUSTOM) ================
+
+Symbol Index Mapping:
+0  - ORANGE (Low-pay)
+1  - PURPLE (Low-pay)
+2  - GREEN (Low-pay)
+3  - RED (Low-pay)
+4  - BLUE (Low-pay)
+
+5  - POT (High-pay)
+6  - DAGGER (High-pay)
+7  - SCARAB (High-pay)
+8  - BIRD (High-pay)
+
+9  - FACE (Special - Scatter)
+10 - MULTIPLIER (Special - Multiplier Symbol)
+
+JSON Specification:
+
+{
+  "symbols": {
+    "low": ["ORANGE", "PURPLE", "GREEN", "RED", "BLUE"],
+    "high": ["POT", "DAGGER", "SCARAB", "BIRD"],
+    "special": {
+      "scatter": "FACE",
+      "multiplier": {
+        "id": "MULTIPLIER",
+        "values": [2,3,4,5,8,10,12,15,20,25,50]
+      }
+    }
+  },
+
+  "mappingFromOriginal": {
+    "BLUE": "ORANGE",
+    "PURPLE": "PURPLE",
+    "YELLOW": "GREEN",
+    "RED": "RED",
+    "GREEN": "BLUE",
+
+    "CHALICE": "POT",
+    "RING": "DAGGER",
+    "HOURGLASS": "SCARAB",
+    "CROWN": "BIRD",
+
+    "SCATTER": "FACE",
+    "MULTI": "MULTIPLIER"
+  }
+}
+
+===============================================================
+

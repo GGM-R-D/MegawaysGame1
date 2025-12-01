@@ -1,0 +1,1171 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using GameEngine.Configuration;
+using GameEngine.Services;
+using RNGClient;
+
+namespace GameEngine.Play;
+
+public sealed class SpinHandler
+{
+    private readonly GameConfigurationLoader _configurationLoader;
+    private readonly WinEvaluator _winEvaluator;
+    private readonly IRngClient _rngClient;
+    private readonly ITimeService _timeService;
+    private readonly FortunaPrng _fortunaPrng;
+    private readonly ISpinTelemetrySink _telemetry;
+
+    public SpinHandler(
+        GameConfigurationLoader configurationLoader,
+        WinEvaluator winEvaluator,
+        ITimeService timeService,
+        FortunaPrng fortunaPrng,
+        IRngClient rngClient,
+        ISpinTelemetrySink telemetry)
+    {
+        _configurationLoader = configurationLoader;
+        _winEvaluator = winEvaluator;
+        _timeService = timeService;
+        _fortunaPrng = fortunaPrng;
+        _rngClient = rngClient;
+        _telemetry = telemetry;
+    }
+
+    public async Task<PlayResponse> PlayAsync(PlayRequest request, CancellationToken cancellationToken = default)
+    {
+        Console.WriteLine($"[SpinHandler] Processing play request for GameId: {request.GameId}");
+        Console.WriteLine($"[SpinHandler] BaseBet: {request.BaseBet.Amount}, TotalBet: {request.TotalBet.Amount}");
+
+        ValidateRequest(request);
+
+        var configuration = await _configurationLoader.GetConfigurationAsync(request.GameId, cancellationToken);
+        var roundId = CreateRoundId();
+        Console.WriteLine($"[SpinHandler] RoundId: {roundId}");
+        var nextState = request.EngineState?.Clone() ?? EngineSessionState.Create();
+        var spinMode = request.IsFeatureBuy
+            ? SpinMode.BuyEntry
+            : nextState.IsInFreeSpins ? SpinMode.FreeSpins : SpinMode.BaseGame;
+
+        var buyCost = request.IsFeatureBuy
+            ? Money.FromBet(request.BaseBet.Amount, configuration.BuyFeature.CostMultiplier)
+            : Money.Zero;
+
+        var reelStrips = SelectReelStrips(configuration, spinMode, request.BetMode);
+        var randomContext = await FetchRandomContext(configuration, reelStrips, request, roundId, spinMode, cancellationToken);
+        var multiplierFactory = new Func<SymbolDefinition, decimal>(symbol =>
+            AssignMultiplierValue(symbol, configuration, request.BetMode, spinMode, nextState.FreeSpins, randomContext));
+
+        ReelBoardBase board;
+        TopReel? topReel = null;
+
+        if (configuration.Board.Megaways && configuration.Megaways is not null && randomContext.ReelHeights is not null)
+        {
+            if (configuration.Megaways.TopReel.Enabled)
+            {
+                var topReelStrips = reelStrips; // Use same strips for top reel
+                topReel = TopReel.Create(
+                    topReelStrips,
+                    configuration.Megaways.TopReel.CoversReels,
+                    configuration.Megaways.TopReel.SymbolCount,
+                    randomContext.TopReelPosition ?? 0,
+                    randomContext.TopReelSymbolSeeds,
+                    _fortunaPrng);
+            }
+
+            board = MegawaysReelBoard.Create(
+                reelStrips,
+                configuration.SymbolMap,
+                randomContext.ReelHeights,
+                multiplierFactory,
+                randomContext.ReelStartSeeds,
+                topReel,
+                configuration.Megaways.TopReel.Enabled ? configuration.Megaways.TopReel.CoversReels : null,
+                _fortunaPrng);
+        }
+        else
+        {
+            board = ReelBoard.Create(
+                reelStrips,
+                configuration.SymbolMap,
+                configuration.Board.Rows,
+                multiplierFactory,
+                randomContext.ReelStartSeeds,
+                _fortunaPrng);
+        }
+
+        var cascades = new List<CascadeStep>();
+        var wins = new List<SymbolWin>();
+        var cascadeIndex = 0;
+        Money totalWin = Money.Zero;
+        Money scatterWin = Money.Zero;
+        Money featureWin = nextState.FreeSpins?.FeatureWin ?? Money.Zero;
+        int freeSpinsAwarded = 0;
+        IReadOnlyList<string>? finalGrid = null;
+
+        while (true)
+        {
+            var gridBefore = board.FlattenCodes();
+            var evaluation = _winEvaluator.Evaluate(gridBefore.Where(s => s != null).Select(s => s!).ToList(), configuration, request.TotalBet);
+
+            if (evaluation.SymbolWins.Count == 0)
+            {
+                finalGrid = cascades.Count > 0 
+                    ? cascades[^1].GridAfter 
+                    : gridBefore.Where(s => s != null).Select(s => s!).ToList();
+                break;
+            }
+
+            wins.AddRange(evaluation.SymbolWins);
+            var cascadeBaseWin = evaluation.TotalWin;
+            var cascadeFinalWin = cascadeBaseWin;
+            decimal appliedMultiplier = 1m;
+
+            var multiplierSum = board.SumMultipliers();
+            if (spinMode == SpinMode.BaseGame || spinMode == SpinMode.BuyEntry)
+            {
+                if (multiplierSum > 0m && cascadeBaseWin.Amount > 0)
+                {
+                    appliedMultiplier = multiplierSum;
+                    cascadeFinalWin = cascadeBaseWin * multiplierSum;
+                }
+            }
+            else if (nextState.FreeSpins is not null)
+            {
+                if (multiplierSum > 0m)
+                {
+                    nextState.FreeSpins.TotalMultiplier += multiplierSum;
+                }
+
+                if (nextState.FreeSpins.TotalMultiplier > 0m && cascadeBaseWin.Amount > 0)
+                {
+                    appliedMultiplier = nextState.FreeSpins.TotalMultiplier;
+                    cascadeFinalWin = cascadeBaseWin * nextState.FreeSpins.TotalMultiplier;
+                }
+            }
+
+            totalWin += cascadeFinalWin;
+
+            if (spinMode == SpinMode.FreeSpins && nextState.FreeSpins is not null)
+            {
+                featureWin += cascadeFinalWin;
+                nextState.FreeSpins.FeatureWin = featureWin;
+            }
+
+            var winningCodes = evaluation.SymbolWins
+                .Select(win => win.SymbolCode)
+                .ToHashSet(StringComparer.Ordinal);
+
+            board.RemoveSymbols(winningCodes);
+            if (board is MegawaysReelBoard megawaysBoard)
+            {
+                megawaysBoard.RemoveTopReelSymbols(winningCodes);
+            }
+            board.RemoveMultipliers();
+
+            if (board.NeedsRefill)
+            {
+                board.Refill();
+            }
+
+            var gridAfter = board.FlattenCodes();
+
+            cascades.Add(new CascadeStep(
+                Index: cascadeIndex++,
+                GridBefore: gridBefore.Where(s => s != null).Select(s => s!).ToList(),
+                GridAfter: gridAfter.Where(s => s != null).Select(s => s!).ToList(),
+                WinsAfterCascade: evaluation.SymbolWins,
+                BaseWin: cascadeBaseWin,
+                AppliedMultiplier: appliedMultiplier,
+                TotalWin: cascadeFinalWin));
+        }
+
+        var scatterOutcome = ResolveScatterOutcome(board, configuration, request.TotalBet);
+        if (scatterOutcome is not null)
+        {
+            scatterWin = scatterOutcome.Win;
+            totalWin += scatterWin;
+
+            if ((spinMode == SpinMode.BaseGame || spinMode == SpinMode.BuyEntry) && scatterOutcome.FreeSpinsAwarded > 0)
+            {
+                InitializeFreeSpins(configuration, nextState);
+                spinMode = SpinMode.FreeSpins;
+                freeSpinsAwarded = scatterOutcome.FreeSpinsAwarded;
+            }
+            else if (spinMode == SpinMode.FreeSpins && nextState.FreeSpins is not null)
+            {
+                if (scatterOutcome.SymbolCount >= configuration.FreeSpins.RetriggerScatterCount)
+                {
+                    nextState.FreeSpins.SpinsRemaining += configuration.FreeSpins.RetriggerSpins;
+                    nextState.FreeSpins.TotalSpinsAwarded += configuration.FreeSpins.RetriggerSpins;
+                    freeSpinsAwarded = configuration.FreeSpins.RetriggerSpins;
+                }
+            }
+        }
+
+        if (spinMode == SpinMode.FreeSpins && nextState.FreeSpins is not null)
+        {
+            nextState.FreeSpins.SpinsRemaining = Math.Max(0, nextState.FreeSpins.SpinsRemaining - 1);
+            nextState.FreeSpins.JustTriggered = false;
+
+            if (nextState.FreeSpins.SpinsRemaining == 0)
+            {
+                nextState.FreeSpins = null;
+            }
+        }
+
+        var maxWin = Money.FromBet(request.TotalBet.Amount, configuration.MaxWinMultiplier);
+        if (totalWin.Amount > maxWin.Amount)
+        {
+            totalWin = maxWin;
+        }
+
+        var featureSummary = nextState.FreeSpins is null
+            ? null
+            : new FeatureSummary(
+                SpinsRemaining: nextState.FreeSpins.SpinsRemaining,
+                TotalMultiplier: nextState.FreeSpins.TotalMultiplier,
+                FeatureWin: nextState.FreeSpins.FeatureWin,
+                TriggeredThisSpin: nextState.FreeSpins.JustTriggered);
+
+        finalGrid ??= board.FlattenCodes().Where(s => s != null).Select(s => s!).ToList();
+
+        // Extract Megaways-specific data
+        IReadOnlyList<int>? reelHeights = null;
+        IReadOnlyList<string>? topReelSymbols = null;
+        int? waysToWin = null;
+
+        if (board is MegawaysReelBoard megawaysBoardResult)
+        {
+            reelHeights = megawaysBoardResult.ReelHeights;
+            waysToWin = megawaysBoardResult.CalculateWaysToWin();
+            if (megawaysBoardResult.TopReel is not null)
+            {
+                topReelSymbols = megawaysBoardResult.TopReel.Symbols;
+            }
+        }
+
+        // ===== BACKEND SYMBOL LOGGING =====
+        // Log the final grid symbols so frontend can verify what should be displayed
+        Console.WriteLine($"[SpinHandler] ===== FINAL GRID SYMBOLS (Backend Output) =====");
+        Console.WriteLine($"[SpinHandler] Total symbols in finalGrid: {finalGrid.Count}");
+        
+        if (reelHeights != null && reelHeights.Count > 0)
+        {
+            int columns = reelHeights.Count;
+            int maxHeight = reelHeights.Max();
+            int totalRows = maxHeight + 1; // +1 for top reel row
+            
+            Console.WriteLine($"[SpinHandler] Grid structure: {columns} columns, maxHeight={maxHeight}, totalRows={totalRows}");
+            Console.WriteLine($"[SpinHandler] ReelHeights: [{string.Join(", ", reelHeights)}]");
+            
+            if (topReelSymbols != null)
+            {
+                Console.WriteLine($"[SpinHandler] TopReelSymbols: [{string.Join(", ", topReelSymbols)}]");
+            }
+            
+            // Log the full matrix structure
+            Console.WriteLine($"[SpinHandler] Full matrix (row-major, from maxHeight down to 0):");
+            for (int row = maxHeight; row >= 0; row--)
+            {
+                var rowSymbols = new List<string>();
+                for (int col = 0; col < columns; col++)
+                {
+                    int idx = (maxHeight - row) * columns + col;
+                    if (idx < finalGrid.Count)
+                    {
+                        rowSymbols.Add(finalGrid[idx] ?? "NULL");
+                    }
+                    else
+                    {
+                        rowSymbols.Add("OUT_OF_BOUNDS");
+                    }
+                }
+                Console.WriteLine($"[SpinHandler]   Row {row,2}: [{string.Join(", ", rowSymbols)}]");
+            }
+            
+            // Log what each reel should display
+            // Top reel is at row maxHeight, main reels are at rows 0 to maxHeight-1
+            Console.WriteLine($"[SpinHandler] Expected frontend display:");
+            
+            // Log top reel
+            if (topReelSymbols != null)
+            {
+                Console.WriteLine($"[SpinHandler]   Top reel (row {maxHeight}, columns 1-4): [{string.Join(", ", topReelSymbols)}]");
+            }
+            
+            // Log main reels (rows 0 to reelHeight-1 for each reel)
+            Console.WriteLine($"[SpinHandler] Main reels (rows 0 to reelHeight-1, bottom to top):");
+            for (int col = 0; col < columns; col++)
+            {
+                int reelHeight = reelHeights[col];
+                var reelSymbols = new List<string>();
+                for (int row = 0; row < reelHeight; row++)
+                {
+                    // Main reel symbols: backend matrix row r (where r < reelHeight) contains ReelColumn[r]
+                    // Backend iterates from maxHeight down to 0, so:
+                    //   - Row maxHeight = top reel (for columns with top reel)
+                    //   - Row maxHeight-1 down to 0 = main reel symbols
+                    // But the backend only places symbols at matrix rows where row < reelHeight
+                    // So for a reel with height h, symbols are at matrix rows: h-1, h-2, ..., 1, 0
+                    // Matrix row r is at array index: (maxHeight - r) * columns + col
+                    
+                    // Frontend row 0 (bottom) = backend ReelColumn[0] = backend matrix row 0
+                    // Frontend row h-1 (top) = backend ReelColumn[h-1] = backend matrix row h-1
+                    int matrixRow = row; // Direct mapping
+                    int idx = (maxHeight - matrixRow) * columns + col;
+                    
+                    if (idx >= 0 && idx < finalGrid.Count)
+                    {
+                        string symbol = finalGrid[idx];
+                        if (symbol != null)
+                        {
+                            reelSymbols.Add(symbol);
+                        }
+                        else
+                        {
+                            reelSymbols.Add("NULL");
+                        }
+                    }
+                    else
+                    {
+                        reelSymbols.Add($"OUT_OF_BOUNDS(idx={idx})");
+                    }
+                }
+                Console.WriteLine($"[SpinHandler]   Reel {col} (height {reelHeight}): [{string.Join(", ", reelSymbols)}] (row 0=bottom, row {reelHeight-1}=top)");
+            }
+            
+            // Log the flat array for reference
+            Console.WriteLine($"[SpinHandler] Flat array (first 30 symbols): [{string.Join(", ", finalGrid.Take(30))}]");
+        }
+        else
+        {
+            // Non-Megaways board
+            Console.WriteLine($"[SpinHandler] Flat array (all symbols): [{string.Join(", ", finalGrid)}]");
+        }
+        Console.WriteLine($"[SpinHandler] ================================================");
+
+        Console.WriteLine($"[SpinHandler] Spin completed - TotalWin: {totalWin.Amount}, Cascades: {cascades.Count}, Wins: {wins.Count}");
+        if (reelHeights != null)
+        {
+            Console.WriteLine($"[SpinHandler] Megaways - ReelHeights: [{string.Join(", ", reelHeights)}], WaysToWin: {waysToWin ?? 0}");
+        }
+
+        var response = new PlayResponse(
+            StatusCode: 200,
+            Win: totalWin,
+            ScatterWin: scatterWin,
+            FeatureWin: featureSummary?.FeatureWin ?? Money.Zero,
+            BuyCost: buyCost,
+            FreeSpinsAwarded: freeSpinsAwarded,
+            RoundId: roundId,
+            Timestamp: _timeService.UtcNow,
+            NextState: nextState,
+            Results: new ResultsEnvelope(
+                Cascades: cascades,
+                Wins: wins,
+                Scatter: scatterOutcome,
+                FreeSpins: featureSummary,
+                RngTransactionId: roundId,
+                FinalGridSymbols: finalGrid,
+                ReelHeights: reelHeights,
+                TopReelSymbols: topReelSymbols,
+                WaysToWin: waysToWin));
+
+        _telemetry.Record(new SpinTelemetryEvent(
+            GameId: request.GameId,
+            BetMode: request.BetMode,
+            SpinMode: spinMode,
+            TotalBet: request.TotalBet.Amount + buyCost.Amount,
+            TotalWin: totalWin.Amount,
+            ScatterWin: scatterWin.Amount,
+            FeatureWin: featureSummary?.FeatureWin.Amount ?? 0m,
+            BuyCost: buyCost.Amount,
+            Cascades: cascades.Count,
+            TriggeredFreeSpins: freeSpinsAwarded > 0,
+            FreeSpinMultiplier: nextState.FreeSpins?.TotalMultiplier ?? 0m,
+            Timestamp: response.Timestamp));
+
+        return response;
+    }
+
+    private static void ValidateRequest(PlayRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.GameId))
+        {
+            throw new ArgumentException("gameId is required.", nameof(request.GameId));
+        }
+
+        if (request.Bets is null || request.Bets.Count == 0)
+        {
+            throw new ArgumentException("At least one bet entry is required.", nameof(request.Bets));
+        }
+
+        if (request.EngineState is null)
+        {
+            throw new ArgumentException("Engine state is required.", nameof(request.EngineState));
+        }
+
+        if (request.TotalBet.Amount <= 0)
+        {
+            throw new ArgumentException("Total bet must be positive.", nameof(request.TotalBet));
+        }
+    }
+
+    private IReadOnlyList<IReadOnlyList<string>> SelectReelStrips(
+        GameConfiguration configuration,
+        SpinMode mode,
+        BetMode betMode)
+    {
+        return mode switch
+        {
+            SpinMode.FreeSpins => configuration.ReelLibrary.FreeSpins,
+            SpinMode.BuyEntry => configuration.ReelLibrary.Buy,
+            _ => SelectBaseReels(configuration, betMode)
+        };
+    }
+
+    private IReadOnlyList<IReadOnlyList<string>> SelectBaseReels(GameConfiguration configuration, BetMode betMode)
+    {
+        var key = betMode == BetMode.Ante ? "ante" : "standard";
+        if (!configuration.BetModes.TryGetValue(key, out var modeDefinition))
+        {
+            return configuration.ReelLibrary.High;
+        }
+
+        var lowWeight = Math.Max(0, modeDefinition.ReelWeights.Low);
+        var highWeight = Math.Max(0, modeDefinition.ReelWeights.High);
+        var total = lowWeight + highWeight;
+        if (total <= 0)
+        {
+            return configuration.ReelLibrary.High;
+        }
+
+        var roll = _fortunaPrng.NextInt32(0, total);
+        return roll < lowWeight ? configuration.ReelLibrary.Low : configuration.ReelLibrary.High;
+    }
+
+    private async Task<RandomContext> FetchRandomContext(
+        GameConfiguration configuration,
+        IReadOnlyList<IReadOnlyList<string>> reelStrips,
+        PlayRequest request,
+        string roundId,
+        SpinMode spinMode,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var maxRows = configuration.Board.MaxRows ?? configuration.Board.Rows;
+            var multiplierSeedCount = configuration.Board.Megaways 
+                ? configuration.Board.Columns * maxRows 
+                : configuration.Board.Columns * configuration.Board.Rows;
+
+            var pools = new List<PoolRequest>
+            {
+                new(
+                    PoolId: "reel-starts",
+                    DrawCount: reelStrips.Count,
+                    Metadata: new Dictionary<string, object>
+                    {
+                        ["reelLengths"] = reelStrips.Select(strip => strip.Count).ToArray()
+                    }),
+                new(
+                    PoolId: "multiplier-seeds",
+                    DrawCount: multiplierSeedCount,
+                    Metadata: new Dictionary<string, object>
+                    {
+                        ["multiplierValues"] = configuration.Multiplier.Values
+                    })
+            };
+
+            // Add Megaways-specific pools
+            if (configuration.Board.Megaways && configuration.Megaways is not null)
+            {
+                pools.Add(new(
+                    PoolId: "reel-heights",
+                    DrawCount: configuration.Board.Columns,
+                    Metadata: new Dictionary<string, object>
+                    {
+                        ["reelHeightRanges"] = configuration.Megaways.ReelHeights.Select(rh => new { rh.Min, rh.Max }).ToArray()
+                    }));
+
+                if (configuration.Megaways.TopReel.Enabled)
+                {
+                    pools.Add(new(
+                        PoolId: "top-reel-position",
+                        DrawCount: 1,
+                        Metadata: new Dictionary<string, object>
+                        {
+                            ["symbolCount"] = configuration.Megaways.TopReel.SymbolCount
+                        }));
+                    pools.Add(new(
+                        PoolId: "top-reel-symbols",
+                        DrawCount: configuration.Megaways.TopReel.SymbolCount,
+                        Metadata: new Dictionary<string, object>()));
+                }
+            }
+
+            var rngRequest = new JurisdictionPoolsRequest
+            {
+                GameId = request.GameId,
+                RoundId = roundId,
+                Pools = pools,
+                TrackingData = new Dictionary<string, string>
+                {
+                    ["playerToken"] = request.PlayerToken,
+                    ["mode"] = spinMode.ToString(),
+                    ["betMode"] = request.BetMode.ToString()
+                }
+            };
+
+            var response = await _rngClient.RequestPoolsAsync(rngRequest, cancellationToken).ConfigureAwait(false);
+            var reelStartSeeds = ExtractIntegers(response, "reel-starts", reelStrips.Count);
+            var multiplierSeeds = ExtractIntegers(response, "multiplier-seeds", multiplierSeedCount);
+
+            IReadOnlyList<int>? reelHeights = null;
+            int? topReelPosition = null;
+            IReadOnlyList<int>? topReelSymbolSeeds = null;
+
+            if (configuration.Board.Megaways && configuration.Megaways is not null)
+            {
+                var heightSeeds = ExtractIntegers(response, "reel-heights", configuration.Board.Columns);
+                reelHeights = GenerateReelHeights(configuration.Megaways.ReelHeights, heightSeeds, _fortunaPrng);
+
+                if (configuration.Megaways.TopReel.Enabled)
+                {
+                    var topReelPosSeeds = ExtractIntegers(response, "top-reel-position", 1);
+                    topReelPosition = Math.Abs(topReelPosSeeds[0]) % configuration.Megaways.TopReel.SymbolCount;
+                    topReelSymbolSeeds = ExtractIntegers(response, "top-reel-symbols", configuration.Megaways.TopReel.SymbolCount);
+                }
+            }
+
+            return RandomContext.FromSeeds(reelStartSeeds, multiplierSeeds, reelHeights, topReelPosition, topReelSymbolSeeds);
+        }
+        catch
+        {
+            var maxRows = configuration.Board.MaxRows ?? configuration.Board.Rows;
+            var multiplierSeedCount = configuration.Board.Megaways 
+                ? configuration.Board.Columns * maxRows 
+                : configuration.Board.Columns * configuration.Board.Rows;
+            return RandomContext.CreateFallback(reelStrips.Count, multiplierSeedCount, _fortunaPrng, configuration);
+        }
+    }
+
+    private static IReadOnlyList<int> GenerateReelHeights(
+        IReadOnlyList<ReelHeightRange> ranges,
+        IReadOnlyList<int> seeds,
+        FortunaPrng prng)
+    {
+        var heights = new List<int>(ranges.Count);
+        for (var i = 0; i < ranges.Count; i++)
+        {
+            var range = ranges[i];
+            var seed = i < seeds.Count ? seeds[i] : prng.NextInt32(0, int.MaxValue);
+            var rangeSize = range.Max - range.Min + 1;
+            var height = range.Min + (Math.Abs(seed) % rangeSize);
+            heights.Add(height);
+        }
+        return heights;
+    }
+
+    private static IReadOnlyList<int> ExtractIntegers(PoolsResponse response, string poolId, int expectedCount)
+    {
+        var pool = response.Pools.FirstOrDefault(p => string.Equals(p.PoolId, poolId, StringComparison.OrdinalIgnoreCase));
+        if (pool == null)
+        {
+            return Enumerable.Repeat(0, expectedCount).ToArray();
+        }
+
+        var results = new List<int>(expectedCount);
+        foreach (var result in pool.Results.Take(expectedCount))
+        {
+            if (int.TryParse(result, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+            {
+                results.Add(value);
+            }
+        }
+
+        while (results.Count < expectedCount)
+        {
+            results.Add(results.Count);
+        }
+
+        return results;
+    }
+
+    private decimal AssignMultiplierValue(
+        SymbolDefinition definition,
+        GameConfiguration configuration,
+        BetMode betMode,
+        SpinMode spinMode,
+        FreeSpinState? freeSpinState,
+        RandomContext randomContext)
+    {
+        if (definition.Type != SymbolType.Multiplier)
+        {
+            return 0m;
+        }
+
+        IReadOnlyList<MultiplierWeight> profile = configuration.MultiplierProfiles.Standard;
+
+        if (spinMode == SpinMode.FreeSpins && freeSpinState is not null)
+        {
+            profile = freeSpinState.TotalMultiplier >= configuration.MultiplierProfiles.FreeSpinsSwitchThreshold
+                ? configuration.MultiplierProfiles.FreeSpinsLow
+                : configuration.MultiplierProfiles.FreeSpinsHigh;
+        }
+        else if (betMode == BetMode.Ante)
+        {
+            profile = configuration.MultiplierProfiles.Ante;
+        }
+
+        var seed = randomContext.TryDequeueMultiplierSeed(out var rngSeed)
+            ? rngSeed
+            : _fortunaPrng.NextInt32(0, int.MaxValue);
+
+        return RollMultiplier(profile, seed);
+    }
+
+    private decimal RollMultiplier(IReadOnlyList<MultiplierWeight> weights, int seed)
+    {
+        var total = weights.Sum(w => Math.Max(0, w.Weight));
+        if (total <= 0)
+        {
+            return weights.Count > 0 ? weights[^1].Value : 0m;
+        }
+
+        var roll = Math.Abs(seed) % total;
+        var cumulative = 0;
+        foreach (var weight in weights)
+        {
+            cumulative += Math.Max(0, weight.Weight);
+            if (roll < cumulative)
+            {
+                return weight.Value;
+            }
+        }
+
+        return weights[^1].Value;
+    }
+
+    private static ScatterOutcome? ResolveScatterOutcome(ReelBoardBase board, GameConfiguration configuration, Money bet)
+    {
+        var scatterCount = board.CountSymbols(symbol => symbol.Type == SymbolType.Scatter);
+        if (scatterCount == 0)
+        {
+            return null;
+        }
+
+        var reward = configuration.Scatter.Rewards
+            .Where(r => scatterCount >= r.Count)
+            .OrderByDescending(r => r.Count)
+            .FirstOrDefault();
+
+        if (reward is null)
+        {
+            return null;
+        }
+
+        var win = Money.FromBet(bet.Amount, reward.PayoutMultiplier);
+        return new ScatterOutcome(scatterCount, win, reward.FreeSpinsAwarded);
+    }
+
+    private static void InitializeFreeSpins(GameConfiguration configuration, EngineSessionState state)
+    {
+        state.FreeSpins = new FreeSpinState
+        {
+            SpinsRemaining = configuration.FreeSpins.InitialSpins,
+            TotalSpinsAwarded = configuration.FreeSpins.InitialSpins,
+            TotalMultiplier = 0,
+            FeatureWin = Money.Zero,
+            JustTriggered = true
+        };
+    }
+
+    private string CreateRoundId()
+    {
+        var randomSuffix = _fortunaPrng.NextInt32(0, int.MaxValue);
+        return $"{_timeService.UnixMilliseconds:X}-{randomSuffix:X}";
+    }
+
+    private abstract class ReelBoardBase
+    {
+        protected readonly List<ReelColumn> _columns;
+
+        protected ReelBoardBase(List<ReelColumn> columns)
+        {
+            _columns = columns;
+        }
+
+        public abstract bool NeedsRefill { get; }
+        public abstract void Refill();
+        public abstract List<string?> FlattenCodes();
+        public abstract int CalculateWaysToWin();
+
+        public decimal SumMultipliers() =>
+            _columns.SelectMany(column => column.Symbols)
+                .Where(instance => instance.Definition.Type == SymbolType.Multiplier)
+                .Sum(instance => instance.MultiplierValue);
+
+        public int CountSymbols(Func<SymbolDefinition, bool> predicate) =>
+            _columns.SelectMany(column => column.Symbols)
+                .Count(instance => predicate(instance.Definition));
+
+        public void RemoveSymbols(ISet<string> targets)
+        {
+            foreach (var column in _columns)
+            {
+                column.RemoveWhere(symbol => targets.Contains(symbol.Definition.Code));
+            }
+        }
+
+        public void RemoveMultipliers()
+        {
+            foreach (var column in _columns)
+            {
+                column.RemoveWhere(symbol => symbol.Definition.Type == SymbolType.Multiplier);
+            }
+        }
+
+        public IReadOnlyList<ReelColumn> Columns => _columns;
+    }
+
+    private sealed class ReelBoard : ReelBoardBase
+    {
+        private readonly int _rows;
+
+        private ReelBoard(List<ReelColumn> columns, int rows) : base(columns)
+        {
+            _rows = rows;
+        }
+
+        public static ReelBoard Create(
+            IReadOnlyList<IReadOnlyList<string>> reelStrips,
+            IReadOnlyDictionary<string, SymbolDefinition> symbolMap,
+            int rows,
+            Func<SymbolDefinition, decimal> multiplierFactory,
+            IReadOnlyList<int> reelStartSeeds,
+            FortunaPrng prng)
+        {
+            if (reelStrips.Count == 0)
+            {
+                throw new InvalidOperationException("Reel strips are not configured.");
+            }
+
+            var columns = new List<ReelColumn>(reelStrips.Count);
+            for (var columnIndex = 0; columnIndex < reelStrips.Count; columnIndex++)
+            {
+                var strip = reelStrips[columnIndex];
+                if (strip.Count == 0)
+                {
+                    throw new InvalidOperationException($"Reel {columnIndex} is empty.");
+                }
+
+                var startIndex = reelStartSeeds is not null && columnIndex < reelStartSeeds.Count
+                    ? Math.Abs(reelStartSeeds[columnIndex]) % strip.Count
+                    : prng.NextInt32(0, strip.Count);
+                columns.Add(new ReelColumn(strip, startIndex, rows, symbolMap, multiplierFactory));
+            }
+
+            return new ReelBoard(columns, rows);
+        }
+
+        public override bool NeedsRefill => _columns.Any(column => column.Count < _rows);
+
+        public override void Refill()
+        {
+            foreach (var column in _columns)
+            {
+                column.Refill(_rows);
+            }
+        }
+
+        public override List<string?> FlattenCodes()
+        {
+            var snapshot = new List<string?>(_columns.Count * _rows);
+
+            for (var row = _rows - 1; row >= 0; row--)
+            {
+                foreach (var column in _columns)
+                {
+                    snapshot.Add(row < column.Count ? column[row].Definition.Code : null);
+                }
+            }
+
+            return snapshot;
+        }
+
+        public override int CalculateWaysToWin()
+        {
+            // For non-Megaways, ways = columns (fixed height)
+            return _columns.Count;
+        }
+    }
+
+    private sealed class MegawaysReelBoard : ReelBoardBase
+    {
+        private readonly IReadOnlyList<int> _reelHeights;
+        private readonly TopReel? _topReel;
+        private readonly IReadOnlyList<int>? _topReelCoversReels;
+
+        private MegawaysReelBoard(
+            List<ReelColumn> columns,
+            IReadOnlyList<int> reelHeights,
+            TopReel? topReel,
+            IReadOnlyList<int>? topReelCoversReels) : base(columns)
+        {
+            _reelHeights = reelHeights;
+            _topReel = topReel;
+            _topReelCoversReels = topReelCoversReels;
+        }
+
+        public IReadOnlyList<int> ReelHeights => _reelHeights;
+        public TopReel? TopReel => _topReel;
+
+        public static MegawaysReelBoard Create(
+            IReadOnlyList<IReadOnlyList<string>> reelStrips,
+            IReadOnlyDictionary<string, SymbolDefinition> symbolMap,
+            IReadOnlyList<int> reelHeights,
+            Func<SymbolDefinition, decimal> multiplierFactory,
+            IReadOnlyList<int> reelStartSeeds,
+            TopReel? topReel,
+            IReadOnlyList<int>? topReelCoversReels,
+            FortunaPrng prng)
+        {
+            if (reelStrips.Count == 0)
+            {
+                throw new InvalidOperationException("Reel strips are not configured.");
+            }
+
+            if (reelHeights.Count != reelStrips.Count)
+            {
+                throw new InvalidOperationException("Reel heights count must match reel strips count.");
+            }
+
+            var columns = new List<ReelColumn>(reelStrips.Count);
+            for (var columnIndex = 0; columnIndex < reelStrips.Count; columnIndex++)
+            {
+                var strip = reelStrips[columnIndex];
+                if (strip.Count == 0)
+                {
+                    throw new InvalidOperationException($"Reel {columnIndex} is empty.");
+                }
+
+                var height = reelHeights[columnIndex];
+                var startIndex = reelStartSeeds is not null && columnIndex < reelStartSeeds.Count
+                    ? Math.Abs(reelStartSeeds[columnIndex]) % strip.Count
+                    : prng.NextInt32(0, strip.Count);
+                columns.Add(new ReelColumn(strip, startIndex, height, symbolMap, multiplierFactory));
+            }
+
+            return new MegawaysReelBoard(columns, reelHeights, topReel, topReelCoversReels);
+        }
+
+        public override bool NeedsRefill
+        {
+            get
+            {
+                for (var i = 0; i < _columns.Count; i++)
+                {
+                    if (_columns[i].Count < _reelHeights[i])
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+
+        public override void Refill()
+        {
+            for (var i = 0; i < _columns.Count; i++)
+            {
+                _columns[i].Refill(_reelHeights[i]);
+            }
+        }
+
+        public override List<string?> FlattenCodes()
+        {
+            var maxHeight = _reelHeights.Max();
+            var snapshot = new List<string?>();
+
+            // Row-major order: iterate from top to bottom (maxHeight to 0)
+            // Top reel is at row maxHeight, then main reels below
+            for (var row = maxHeight; row >= 0; row--)
+            {
+                for (var col = 0; col < _columns.Count; col++)
+                {
+                    var reelHeight = _reelHeights[col];
+                    var hasTopReel = _topReel is not null && _topReelCoversReels is not null && _topReelCoversReels.Contains(col);
+
+                    if (row == maxHeight && hasTopReel)
+                    {
+                        // Top reel symbol at topmost row
+                        var topReelSymbol = _topReel!.GetSymbolForReel(col);
+                        snapshot.Add(topReelSymbol);
+                    }
+                    else if (row < maxHeight)
+                    {
+                        // Main reel symbols
+                        // For reels with top reel, row 0 is the top reel, so main symbols start at row 1
+                        // For reels without top reel, main symbols start at row 0
+                        var mainRow = hasTopReel ? row : row;
+                        
+                        if (mainRow < reelHeight && mainRow < _columns[col].Count)
+                        {
+                            snapshot.Add(_columns[col][mainRow].Definition.Code);
+                        }
+                        else
+                        {
+                            snapshot.Add(null);
+                        }
+                    }
+                    else
+                    {
+                        snapshot.Add(null);
+                    }
+                }
+            }
+
+            return snapshot;
+        }
+
+        public override int CalculateWaysToWin()
+        {
+            var ways = 1;
+            for (var i = 0; i < _columns.Count; i++)
+            {
+                var height = _reelHeights[i];
+                if (_topReel is not null && _topReelCoversReels is not null && _topReelCoversReels.Contains(i))
+                {
+                    height++; // Include top reel symbol
+                }
+                ways *= height;
+            }
+            return ways;
+        }
+
+        public void RemoveTopReelSymbols(ISet<string> targets)
+        {
+            if (_topReel is not null)
+            {
+                _topReel.RemoveSymbols(targets);
+            }
+        }
+    }
+
+    private sealed class TopReel
+    {
+        private readonly IReadOnlyList<string> _symbols;
+        private int _position;
+        private readonly IReadOnlyList<int> _coversReels;
+
+        private TopReel(IReadOnlyList<string> symbols, int position, IReadOnlyList<int> coversReels)
+        {
+            _symbols = symbols;
+            _position = position;
+            _coversReels = coversReels;
+        }
+
+        public IReadOnlyList<string> Symbols => _symbols;
+        public int Position => _position;
+
+        public static TopReel Create(
+            IReadOnlyList<IReadOnlyList<string>> reelStrips,
+            IReadOnlyList<int> coversReels,
+            int symbolCount,
+            int position,
+            IReadOnlyList<int>? symbolSeeds,
+            FortunaPrng prng)
+        {
+            // Use first covered reel's strip for top reel symbols
+            var strip = reelStrips[coversReels[0]];
+            var symbols = new List<string>(symbolCount);
+
+            for (var i = 0; i < symbolCount; i++)
+            {
+                var seed = symbolSeeds is not null && i < symbolSeeds.Count
+                    ? symbolSeeds[i]
+                    : prng.NextInt32(0, int.MaxValue);
+                var index = Math.Abs(seed) % strip.Count;
+                symbols.Add(strip[index]);
+            }
+
+            return new TopReel(symbols, position, coversReels);
+        }
+
+        public string GetSymbolForReel(int reelIndex)
+        {
+            if (!_coversReels.Contains(reelIndex))
+            {
+                throw new ArgumentException($"Reel {reelIndex} is not covered by top reel.", nameof(reelIndex));
+            }
+
+            // Right-to-left spin: position 0 is rightmost, increasing moves left
+            // For reel at index i, we need symbol at position (position + (maxIndex - i)) % symbolCount
+            var maxIndex = _coversReels.Max();
+            var reelOffset = maxIndex - reelIndex;
+            var symbolIndex = (_position + reelOffset) % _symbols.Count;
+            return _symbols[symbolIndex];
+        }
+
+        public void Spin(int newPosition)
+        {
+            _position = newPosition;
+        }
+
+        public void RemoveSymbols(ISet<string> targets)
+        {
+            // Top reel symbols are removed by replacing them
+            // This will be handled during cascade refill
+        }
+    }
+
+    private sealed class ReelColumn
+    {
+        private readonly IReadOnlyList<string> _strip;
+        private readonly IReadOnlyDictionary<string, SymbolDefinition> _symbolMap;
+        private readonly Func<SymbolDefinition, decimal> _multiplierFactory;
+        private int _nextIndex;
+
+        public List<SymbolInstance> Symbols { get; }
+
+        public ReelColumn(
+            IReadOnlyList<string> strip,
+            int startIndex,
+            int rows,
+            IReadOnlyDictionary<string, SymbolDefinition> symbolMap,
+            Func<SymbolDefinition, decimal> multiplierFactory)
+        {
+            _strip = strip;
+            _symbolMap = symbolMap;
+            _multiplierFactory = multiplierFactory;
+            _nextIndex = startIndex;
+            Symbols = new List<SymbolInstance>(rows);
+
+            for (var i = 0; i < rows; i++)
+            {
+                Symbols.Add(CreateInstance());
+            }
+        }
+
+        public int Count => Symbols.Count;
+
+        public SymbolInstance this[int index] => Symbols[index];
+
+        public void Refill(int desiredRows)
+        {
+            while (Symbols.Count < desiredRows)
+            {
+                Symbols.Add(CreateInstance());
+            }
+        }
+
+        public void RemoveWhere(Func<SymbolInstance, bool> predicate) =>
+            Symbols.RemoveAll(instance => predicate(instance));
+
+        private SymbolInstance CreateInstance()
+        {
+            var definition = ResolveSymbol(_strip[_nextIndex]);
+            _nextIndex = (_nextIndex + 1) % _strip.Count;
+            var multiplier = _multiplierFactory(definition);
+            return new SymbolInstance(definition, multiplier);
+        }
+
+        private SymbolDefinition ResolveSymbol(string symCode)
+        {
+            if (!_symbolMap.TryGetValue(symCode, out var definition))
+            {
+                throw new InvalidOperationException($"Unknown symbol `{symCode}` on reel.");
+            }
+
+            return definition;
+        }
+    }
+
+    private sealed record SymbolInstance(SymbolDefinition Definition, decimal MultiplierValue);
+
+    private sealed class RandomContext
+    {
+        private readonly IReadOnlyList<int> _reelSeeds;
+        private readonly Queue<int> _multiplierSeeds;
+        private readonly IReadOnlyList<int>? _reelHeights;
+        private readonly int? _topReelPosition;
+        private readonly IReadOnlyList<int>? _topReelSymbolSeeds;
+
+        private RandomContext(
+            IReadOnlyList<int> reelSeeds, 
+            Queue<int> multiplierSeeds,
+            IReadOnlyList<int>? reelHeights = null,
+            int? topReelPosition = null,
+            IReadOnlyList<int>? topReelSymbolSeeds = null)
+        {
+            _reelSeeds = reelSeeds;
+            _multiplierSeeds = multiplierSeeds;
+            _reelHeights = reelHeights;
+            _topReelPosition = topReelPosition;
+            _topReelSymbolSeeds = topReelSymbolSeeds;
+        }
+
+        public IReadOnlyList<int> ReelStartSeeds => _reelSeeds;
+        public IReadOnlyList<int>? ReelHeights => _reelHeights;
+        public int? TopReelPosition => _topReelPosition;
+        public IReadOnlyList<int>? TopReelSymbolSeeds => _topReelSymbolSeeds;
+
+        public bool TryDequeueMultiplierSeed(out int seed)
+        {
+            if (_multiplierSeeds.Count > 0)
+            {
+                seed = _multiplierSeeds.Dequeue();
+                return true;
+            }
+
+            seed = 0;
+            return false;
+        }
+
+        public static RandomContext FromSeeds(
+            IReadOnlyList<int> reelSeeds, 
+            IReadOnlyList<int> multiplierSeeds,
+            IReadOnlyList<int>? reelHeights = null,
+            int? topReelPosition = null,
+            IReadOnlyList<int>? topReelSymbolSeeds = null) =>
+            new(reelSeeds, new Queue<int>(multiplierSeeds), reelHeights, topReelPosition, topReelSymbolSeeds);
+
+        public static RandomContext CreateFallback(int reelCount, int multiplierSeedCount, FortunaPrng prng, GameConfiguration? configuration = null)
+        {
+            var reelSeeds = Enumerable.Range(0, reelCount)
+                .Select(_ => prng.NextInt32(0, int.MaxValue))
+                .ToArray();
+            var multiplierSeeds = Enumerable.Range(0, multiplierSeedCount)
+                .Select(_ => prng.NextInt32(0, int.MaxValue))
+                .ToArray();
+
+            IReadOnlyList<int>? reelHeights = null;
+            int? topReelPosition = null;
+            IReadOnlyList<int>? topReelSymbolSeeds = null;
+
+            if (configuration?.Board.Megaways == true && configuration.Megaways is not null)
+            {
+                var heightSeeds = Enumerable.Range(0, configuration.Board.Columns)
+                    .Select(_ => prng.NextInt32(0, int.MaxValue))
+                    .ToArray();
+                reelHeights = GenerateReelHeights(configuration.Megaways.ReelHeights, heightSeeds, prng);
+
+                if (configuration.Megaways.TopReel.Enabled)
+                {
+                    topReelPosition = prng.NextInt32(0, configuration.Megaways.TopReel.SymbolCount);
+                    topReelSymbolSeeds = Enumerable.Range(0, configuration.Megaways.TopReel.SymbolCount)
+                        .Select(_ => prng.NextInt32(0, int.MaxValue))
+                        .ToArray();
+                }
+            }
+
+            return FromSeeds(reelSeeds, multiplierSeeds, reelHeights, topReelPosition, topReelSymbolSeeds);
+        }
+    }
+}
+
