@@ -264,15 +264,33 @@ public sealed class SpinHandler
 
         if (board is MegawaysReelBoard megawaysBoardResult)
         {
-            reelHeights = megawaysBoardResult.ReelHeights;
-            waysToWin = megawaysBoardResult.CalculateWaysToWin();
-            if (megawaysBoardResult.TopReel is not null)
+            // Reel heights should include top reel for covered columns (columns 1-4)
+            var baseReelHeights = megawaysBoardResult.ReelHeights;
+            var adjustedReelHeights = new List<int>(baseReelHeights);
+            
+            if (megawaysBoardResult.TopReel is not null && configuration.Megaways?.TopReel?.CoversReels is not null)
             {
-                // Convert top reel symbol IDs to codes before sending to frontend
-                var topReelSymbolIds = megawaysBoardResult.TopReel.Symbols;
-                var topReelCodes = new List<string>();
-                foreach (var symbolId in topReelSymbolIds)
+                // Add +1 to reel heights for columns covered by top reel
+                foreach (var coveredCol in configuration.Megaways.TopReel.CoversReels)
                 {
+                    if (coveredCol >= 0 && coveredCol < adjustedReelHeights.Count)
+                    {
+                        adjustedReelHeights[coveredCol] = adjustedReelHeights[coveredCol] + 1;
+                    }
+                }
+            }
+            
+            reelHeights = adjustedReelHeights;
+            waysToWin = megawaysBoardResult.CalculateWaysToWin();
+            
+            if (megawaysBoardResult.TopReel is not null && configuration.Megaways?.TopReel?.CoversReels is not null)
+            {
+                // Get the symbol for each covered column using GetSymbolForReel
+                // This ensures we get the correct symbol based on the top reel's position
+                var topReelCodes = new List<string>();
+                foreach (var coveredCol in configuration.Megaways.TopReel.CoversReels)
+                {
+                    var symbolId = megawaysBoardResult.TopReel.GetSymbolForReel(coveredCol);
                     if (configuration.SymbolMap.TryGetValue(symbolId, out var def))
                     {
                         topReelCodes.Add(def.Code);
