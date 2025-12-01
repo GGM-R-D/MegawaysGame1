@@ -285,6 +285,8 @@ public sealed class SpinHandler
             
             if (megawaysBoardResult.TopReel is not null && configuration.Megaways?.TopReel?.CoversReels is not null)
             {
+                // CRITICAL FIX: Convert internal IDs (Sym1) to public Codes (FACE/BIRD)
+                // This matches the format used by the main grid
                 // Get the symbol for each covered column using GetSymbolForReel
                 // This ensures we get the correct symbol based on the top reel's position
                 var topReelCodes = new List<string>();

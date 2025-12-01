@@ -360,9 +360,19 @@ export default class TopReelRenderer {
    * @param {PIXI.Assets} assets - PixiJS Assets API
    * @returns {void}
    */
+  /**
+   * Preloads final textures during spin
+   * 
+   * Applies final textures to the SPECIFIC sprites that will land in the visible area.
+   * This prevents the "glitch" where symbols change after stopping.
+   * 
+   * @param {Array<string>} symbols - Final symbol codes (e.g. ["BIRD", "RED", "FACE", "PURPLE"])
+   * @param {PIXI.Assets} assets - PixiJS Assets API
+   * @returns {void}
+   */
   preloadSpinResult(symbols, assets) {
     if (!symbols || !Array.isArray(symbols) || symbols.length !== this.symbolCount) {
-      console.warn('[TopReelRenderer] preloadSpinResult: Invalid symbols', symbols, 'expected length', this.symbolCount);
+      console.warn('[TopReelRenderer] preloadSpinResult: Invalid symbols', symbols);
       return;
     }
 
@@ -370,70 +380,76 @@ export default class TopReelRenderer {
     this.currentSymbols = symbols;
 
     console.log(`[TopReelRenderer] preloadSpinResult: Received symbols from backend:`, symbols);
-    console.log(`[TopReelRenderer] preloadSpinResult: coversReels:`, this.coversReels);
 
-    // SIMPLIFIED APPROACH: Match main grid logic - directly map symbols to sprites
-    // Backend sends symbols in order: [col1, col2, col3, col4] for reels 1-4
-    // The ticker positions sprites based on: symbolX = rightmostX - wrappedPos
-    // where wrappedPos = ((normalizedPos + (i * symbolSpacing)) % totalSymbolWidth)
+    // We need to find which sprite 'i' in the loop lands in visible slot 'k' (0..3)
     
+    // 1. Get the target position where the reel will stop
+    // If targetPosition isn't set yet (rare), use current position
+    const targetPos = this.targetPosition || this.position;
+
+    // 2. Constants for calculation (must match setupTicker logic)
     const symbolSpacing = this.reelWidth;
     const totalSymbolWidth = this.symbols.length * symbolSpacing;
     const rightmostX = this.coversReels[this.coversReels.length - 1] * this.reelWidth + this.reelWidth;
-    
-    // Use targetPosition if set, otherwise use current position
-    const targetPos = Number.isFinite(this.targetPosition) ? this.targetPosition : this.position;
-    
-    // Normalize target position for wrapping (in pixels)
-    let normalizedTargetPos = targetPos;
-    if (normalizedTargetPos < 0) {
-      normalizedTargetPos = (normalizedTargetPos % totalSymbolWidth + totalSymbolWidth) % totalSymbolWidth;
-    } else {
-      normalizedTargetPos = normalizedTargetPos % totalSymbolWidth;
-    }
-    
-    // Convert to "symbol units" (how many symbol widths we've scrolled)
-    const normalizedPosInUnits = normalizedTargetPos / symbolSpacing;
-    
-    console.log(`[TopReelRenderer] preloadSpinResult: targetPos=${targetPos}, normalizedTargetPos=${normalizedTargetPos}, normalizedPosInUnits=${normalizedPosInUnits}`);
 
-    // For each visible column, map the symbol directly to the sprite that will be there
-    // Backend symbols[0] = column 1 (leftmost), symbols[3] = column 4 (rightmost)
-    // At targetPosition, we want symbols[visibleIndex] to be at coversReels[visibleIndex]
-    for (let visibleIndex = 0; visibleIndex < this.symbolCount && visibleIndex < symbols.length; visibleIndex++) {
-      const symbolCode = symbols[visibleIndex];
-      if (!symbolCode || symbolCode === 'NULL') {
+    // 3. Normalize target position to positive range for modulo math
+    let normalizedTarget = targetPos;
+    if (normalizedTarget < 0) {
+      normalizedTarget = (normalizedTarget % totalSymbolWidth + totalSymbolWidth) % totalSymbolWidth;
+    } else {
+      normalizedTarget = normalizedTarget % totalSymbolWidth;
+    }
+
+    console.log(`[TopReelRenderer] preloadSpinResult: targetPos=${targetPos}, normalizedTarget=${normalizedTarget}`);
+
+    // 4. Loop through the VISIBLE slots (k = 0 to 3)
+    // We want to find which sprite lands in slot k and set its texture to symbols[k]
+    for (let k = 0; k < this.symbolCount; k++) {
+      const symbolCode = symbols[k]; // The symbol we want to show in this slot
+      const texture = assets.get(symbolCode) ?? assets.get('PLACEHOLDER');
+      if (!texture) {
+        console.warn(`[TopReelRenderer] preloadSpinResult: No texture found for symbol ${symbolCode} at slot ${k}`);
         continue;
       }
 
-      // Calculate which sprite index will be at this visible position
-      // The visible positions are at offsets: 3, 2, 1, 0 (from left to right)
-      // From ticker: wrappedPos = ((normalizedPos + i * spacing) % totalWidth)
-      // For visible index j, we want wrappedPos = (3 - j) * spacing
-      // So: (normalizedPosInUnits + i) % symbols.length = (3 - j)
-      // => i = ((3 - j) - normalizedPosInUnits + symbols.length) % symbols.length
-      
-      const targetOffset = this.symbolCount - 1 - visibleIndex; // 3, 2, 1, 0
-      let spriteIndex = (targetOffset - Math.floor(normalizedPosInUnits) + this.symbols.length) % this.symbols.length;
-      if (spriteIndex < 0) spriteIndex += this.symbols.length;
+      // The X coordinate of this visible slot (center of the column)
+      const slotX = this.coversReels[k] * this.reelWidth + (this.reelWidth / 2);
 
-      const sprite = this.symbols[spriteIndex];
-      if (sprite && !sprite.destroyed) {
-        const texture = assets.get(symbolCode) ?? assets.get('PLACEHOLDER');
-        if (texture) {
-          const scale = Math.min(
-            this.symbolSize / texture.width,
-            this.symbolSize / texture.height
-          );
-          sprite.texture = texture;
-          sprite.scale.set(scale);
-          
-          console.log(`[TopReelRenderer] preloadSpinResult: Visible ${visibleIndex} (col ${this.coversReels[visibleIndex]}) -> Sprite ${spriteIndex}, Symbol ${symbolCode}, targetOffset=${targetOffset}`);
-        } else {
-          console.warn(`[TopReelRenderer] preloadSpinResult: No texture found for symbol ${symbolCode}`);
+      // Find the sprite that will be closest to slotX at targetPosition
+      let bestSprite = null;
+      let minDist = Infinity;
+
+      for (let i = 0; i < this.symbols.length; i++) {
+        // Calculate where sprite i lands at targetPosition
+        const wrappedPos = ((normalizedTarget + (i * symbolSpacing)) % totalSymbolWidth);
+        let finalX = rightmostX - wrappedPos;
+
+        // Handle wrapping logic same as ticker
+        if (finalX < this.coversReels[0] * this.reelWidth - totalSymbolWidth) {
+          finalX += totalSymbolWidth;
+        } else if (finalX > rightmostX + symbolSpacing) {
+          finalX -= totalSymbolWidth;
         }
+
+        const dist = Math.abs(finalX - slotX);
+        if (dist < minDist) {
+          minDist = dist;
+          bestSprite = this.symbols[i];
+        }
+      }
+
+      // Apply texture to the correct sprite
+      if (bestSprite && !bestSprite.destroyed) {
+        bestSprite.texture = texture;
+        const scale = Math.min(
+          this.symbolSize / texture.width,
+          this.symbolSize / texture.height
+        );
+        bestSprite.scale.set(scale);
+        
+        console.log(`[TopReelRenderer] preloadSpinResult: Slot ${k} (col ${this.coversReels[k]}, x=${slotX}) -> Sprite, Symbol ${symbolCode}, distance=${minDist.toFixed(1)}`);
       } else {
-        console.warn(`[TopReelRenderer] preloadSpinResult: Sprite ${spriteIndex} not available`);
+        console.warn(`[TopReelRenderer] preloadSpinResult: No sprite found for slot ${k}`);
       }
     }
   }
