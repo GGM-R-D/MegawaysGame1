@@ -1096,9 +1096,13 @@ export default class GridRenderer {
       const reelSymbolCount = reelSymbolsForColumn.length;
 
       // --- CRITICAL: DYNAMIC SIZING ---
-      // Use fixed maxRows for height calculation to keep within game window
-      const totalReelPixelHeight = this.maxRows * this.symbolSize; 
-      const dynamicSymbolHeight = totalReelPixelHeight / reelSymbolCount;
+      // Fixed visual height for all reels (maxRows * symbolSize in pixels)
+      // This matches the mask height in buildReels: maskHeight = symbolSize * maxRows
+      const fixedReelHeightPixels = this.maxRows * this.symbolSize;
+      // Calculate dynamic height per symbol: divide fixed height by number of symbols
+      // If 2 symbols: each gets 50% of space. If 7 symbols: each gets 1/7th of space
+      // Use reelSymbolCount (array length) - backend should send correct number of symbols
+      const dynamicSymbolHeight = fixedReelHeightPixels / reelSymbolCount;
       // -------------------------------------
 
       if (!reel.gridSprites) {
@@ -1110,7 +1114,9 @@ export default class GridRenderer {
       // Render each symbol in this reel
       // Debug: Log all symbols for this reel
       console.log(`[GridRenderer] renderGridFromMatrix: Reel ${col} (height ${reelSymbolCount}):`, reelSymbolsForColumn);
+      console.log(`[GridRenderer] renderGridFromMatrix: Reel ${col} - Backend array (row 0=bottom, row ${reelSymbolCount-1}=top):`, reelSymbolsForColumn.map((sym, idx) => `[${idx}]=${sym}`).join(', '));
       
+      // Process symbols: backend row 0 is bottom, we need to display them bottom to top
       for (let row = 0; row < reelSymbolCount; row++) {
         const symbolCode = reelSymbolsForColumn[row];
 
@@ -1142,52 +1148,108 @@ export default class GridRenderer {
         sprite.texture = texture;
 
         // --- APPLY DYNAMIC SCALE ---
-        // Scale sprite to fit the NEW dynamic height
-        // CRITICAL: We must ensure symbols fit within the fixed mask height
-        // The mask is always maxRows * symbolSize, so we scale to fit reelSymbolCount symbols in that space
-        const scaleX = (this.reelWidth * 0.95) / texture.width; // 95% to leave small gap
-        const scaleY = (dynamicSymbolHeight * 0.95) / texture.height; // 95% to prevent overlap
-        // Use the smaller scale to ensure it fits within both width and height constraints
-        sprite.scale.set(Math.min(scaleX, scaleY)); 
+        // Scale sprite to fill width and dynamic height (stretch to fit, don't maintain aspect ratio)
+        // CRITICAL: Scale to exactly match dynamicSymbolHeight so all symbols fit perfectly
+        const scaleX = this.reelWidth / texture.width;
+        const scaleY = dynamicSymbolHeight / texture.height;
+        
+        // Stretch to fill: use separate X and Y scales (typical for Megaways "blocks")
+        sprite.scale.set(scaleX, scaleY);
+        
+        // CRITICAL: After scaling, verify and adjust to ensure exact height match
+        // This prevents any rounding errors from causing symbols to be cut off
+        let actualSpriteHeight = sprite.height;
+        if (Math.abs(actualSpriteHeight - dynamicSymbolHeight) > 0.1) {
+          // Fine-tune scale to ensure exact height match
+          const heightCorrection = dynamicSymbolHeight / actualSpriteHeight;
+          sprite.scale.y *= heightCorrection;
+          actualSpriteHeight = sprite.height; // Update after correction
+        }
         
         // Center horizontally
         sprite.x = Math.round((this.reelWidth - sprite.width) / 2);
 
         // --- POSITIONING ---
-        // Backend Row 0 is BOTTOM. Ticker positions row 0 at y = symbolSize (bottom of visible area)
-        // We need to match the ticker's positioning logic but with dynamic symbol heights
-        // Ticker: y = symbolSize + ((position + j) % count) * symbolSize
-        // For static grid with dynamic heights: y = symbolSize + row * dynamicSymbolHeight
-        // This puts row 0 at bottom (y = symbolSize), row 1 above it, etc.
-        
-        // --- FIX INVERSION AND MASK ALIGNMENT ---
         // Backend Row 0 is BOTTOM. Frontend y=0 is TOP.
-        // We want Row 0 to appear at the bottom of the visible mask area.
-        // The mask starts at y = symbolSize and has height = maxRows * symbolSize
-        // So visible area is from symbolSize to symbolSize + maxRows * symbolSize
-        const hasTopReel = this.topReel && [1, 2, 3, 4].includes(col);
-        const topOffset = hasTopReel ? this.symbolSize : 0;
-        
-        // Position symbols within the mask area
-        // The mask covers from symbolSize to symbolSize + maxRows * symbolSize
-        // We need to fit reelSymbolCount symbols within this space
-        // Row 0 (bottom) should be at the bottom of the visible mask area
-        // Row N-1 (top) should be at the top of the visible mask area
+        // The mask starts at y = symbolSize and has height = fixedReelHeightPixels
+        // We want to fit all symbols within this mask area, stacking from bottom to top
         const maskStart = this.symbolSize;
-        const maskHeight = this.maxRows * this.symbolSize;
+        const maskEnd = maskStart + fixedReelHeightPixels;
         
-        // Calculate the total height needed for all symbols
-        const totalSymbolHeight = reelSymbolCount * dynamicSymbolHeight;
-        // If total height is less than mask height, center them vertically
-        // If total height equals mask height, start from maskStart
-        const verticalOffset = Math.max(0, (maskHeight - totalSymbolHeight) / 2);
+        // Calculate which visual position this row should be at (0 = top, count-1 = bottom)
+        // Row 0 (bottom) needs highest y value, row N-1 (top) needs lowest y value
+        const visualRowIndex = (reelSymbolCount - 1) - row;
         
-        // Position: maskStart + offset + (reelSymbolCount - 1 - row) * dynamicSymbolHeight
-        // This ensures row 0 is at bottom, row N-1 is at top, all within the mask
-        sprite.y = maskStart + verticalOffset + ((reelSymbolCount - 1 - row) * dynamicSymbolHeight) + topOffset;
+        // Position sprite: top of sprite at maskStart + (visualRowIndex * dynamicSymbolHeight)
+        // Use dynamicSymbolHeight (not actualSpriteHeight) to ensure equal spacing
+        // All symbols are scaled to exactly dynamicSymbolHeight, so this ensures perfect stacking
+        sprite.y = maskStart + (visualRowIndex * dynamicSymbolHeight);
+        
+        // Verify the sprite height matches expected (should be very close after scaling correction)
+        if (Math.abs(actualSpriteHeight - dynamicSymbolHeight) > 1) {
+          console.warn(`[GridRenderer] renderGridFromMatrix: Reel ${col}, Row ${row} height mismatch! expected=${dynamicSymbolHeight.toFixed(1)}, actual=${actualSpriteHeight.toFixed(1)}`);
+        }
+        
+        // Debug: Verify positioning calculations
+        const spriteBottom = sprite.y + sprite.height;
+        const expectedBottom = maskStart + ((visualRowIndex + 1) * dynamicSymbolHeight);
+        
+        // Log detailed positioning info
+        console.log(`[GridRenderer] renderGridFromMatrix: Reel ${col}, Row ${row} (${symbolCode}) -> visualRowIndex=${visualRowIndex}, y=${sprite.y.toFixed(1)}, bottom=${spriteBottom.toFixed(1)}, expectedBottom=${expectedBottom.toFixed(1)}, height=${dynamicSymbolHeight.toFixed(1)}, maskStart=${maskStart.toFixed(1)}, maskEnd=${maskEnd.toFixed(1)}`);
+        
+        // Verify positioning
+        if (Math.abs(spriteBottom - expectedBottom) > 1) {
+          console.warn(`[GridRenderer] renderGridFromMatrix: Reel ${col}, Row ${row} positioning mismatch! spriteBottom=${spriteBottom.toFixed(1)}, expected=${expectedBottom.toFixed(1)}`);
+        }
+        
+        // Verify sprite is within mask bounds
+        if (sprite.y < maskStart - 1 || spriteBottom > maskEnd + 1) {
+          console.warn(`[GridRenderer] renderGridFromMatrix: Reel ${col}, Row ${row} sprite OUTSIDE mask bounds! y=${sprite.y.toFixed(1)}, bottom=${spriteBottom.toFixed(1)}, maskStart=${maskStart.toFixed(1)}, maskEnd=${maskEnd.toFixed(1)}`);
+        }
         
         sprite.visible = true;
         sprite.alpha = 1;
+      }
+      
+      // Hide unused sprites
+      for (let r = reelSymbolCount; r < reel.gridSprites.length; r++) {
+        if (reel.gridSprites[r]) {
+          reel.gridSprites[r].visible = false;
+        }
+      }
+      
+      // Log final display order for verification
+      // Create array of [row, symbolCode, yPosition] and sort by y position (top to bottom)
+      const displayedSymbols = [];
+      for (let r = 0; r < reelSymbolCount; r++) {
+        const sprite = reel.gridSprites[r];
+        if (sprite && sprite.visible && sprite.texture) {
+          // Find which symbol code this texture corresponds to
+          const textureUrl = sprite.texture.baseTexture?.resource?.url || '';
+          const symbolCode = this.availableSymbols.find(alias => {
+            const tex = assets.get(alias);
+            return tex?.baseTexture?.resource?.url === textureUrl;
+          }) || reelSymbolsForColumn[r] || 'UNKNOWN';
+          displayedSymbols.push({
+            row: r,
+            symbol: symbolCode,
+            y: sprite.y,
+            expectedSymbol: reelSymbolsForColumn[r]
+          });
+        }
+      }
+      // Sort by y position (top to bottom - lower y = higher on screen)
+      displayedSymbols.sort((a, b) => a.y - b.y);
+      const topToBottom = displayedSymbols.map(s => s.symbol).join(', ');
+      const bottomToTop = displayedSymbols.reverse().map(s => s.symbol).join(', ');
+      console.log(`[GridRenderer] renderGridFromMatrix: Reel ${col} VISUAL DISPLAY (top to bottom):`, topToBottom);
+      console.log(`[GridRenderer] renderGridFromMatrix: Reel ${col} VISUAL DISPLAY (bottom to top):`, bottomToTop);
+      console.log(`[GridRenderer] renderGridFromMatrix: Reel ${col} EXPECTED (backend, bottom to top):`, reelSymbolsForColumn.join(', '));
+      
+      // Check if order matches
+      const expectedTopToBottom = [...reelSymbolsForColumn].reverse().join(', ');
+      if (topToBottom !== expectedTopToBottom) {
+        console.error(`[GridRenderer] renderGridFromMatrix: Reel ${col} ORDER MISMATCH! Expected top-to-bottom: ${expectedTopToBottom}, Got: ${topToBottom}`);
       }
     }
 
@@ -1365,11 +1427,35 @@ export default class GridRenderer {
               continue;
             }
 
-            const scale = Math.min(this.symbolSize / texture.width, this.symbolSize / texture.height);
+            // --- APPLY DYNAMIC SCALE (same as renderGridFromMatrix) ---
+            // Fixed visual height for all reels (maxRows * symbolSize in pixels)
+            const fixedReelHeightPixels = this.maxRows * this.symbolSize;
+            // Calculate dynamic height per symbol
+            const dynamicSymbolHeight = fixedReelHeightPixels / reelHeight;
+            
+            // Scale sprite to fill width and dynamic height (stretch to fit)
+            const scaleX = this.reelWidth / texture.width;
+            const scaleY = dynamicSymbolHeight / texture.height;
             sprite.texture = texture;
-            sprite.scale.set(scale);
+            sprite.scale.set(scaleX, scaleY);
+            
+            // CRITICAL: After scaling, verify and adjust to ensure exact height match
+            let actualSpriteHeight = sprite.height;
+            if (Math.abs(actualSpriteHeight - dynamicSymbolHeight) > 0.1) {
+              // Fine-tune scale to ensure exact height match
+              const heightCorrection = dynamicSymbolHeight / actualSpriteHeight;
+              sprite.scale.y *= heightCorrection;
+              actualSpriteHeight = sprite.height; // Update after correction
+            }
+            
             sprite.x = Math.round((this.reelWidth - sprite.width) / 2);
-            sprite.y = this._rowToY(row, col);
+            
+            // --- POSITIONING (same as renderGridFromMatrix) ---
+            // Backend Row 0 is BOTTOM. Position from bottom to top within mask area
+            const maskStart = this.symbolSize;
+            const visualRowIndex = (reelHeight - 1) - row;
+            // Use dynamicSymbolHeight for positioning to ensure equal spacing
+            sprite.y = maskStart + (visualRowIndex * dynamicSymbolHeight);
             sprite.visible = false; // Keep hidden until we switch to grid mode
             sprite.alpha = 1;
           }
@@ -1950,6 +2036,19 @@ export default class GridRenderer {
           // Get actual reel height for this column (variable for Megaways)
           const reelHeight = Math.max(prevReel.length, nextReel.length);
           
+          // --- CRITICAL: DYNAMIC SIZING (same as renderGridFromMatrix) ---
+          // Fixed visual height for all reels (maxRows * symbolSize)
+          const fixedReelHeight = this.maxRows * this.symbolSize;
+          // Calculate dynamic height per symbol
+          const dynamicSymbolHeight = fixedReelHeight / reelHeight;
+          // Helper function to calculate Y position using dynamic height
+          const getDynamicY = (row) => {
+            const maskStart = this.symbolSize;
+            const visualRowIndex = (reelHeight - 1) - row;
+            return maskStart + (visualRowIndex * dynamicSymbolHeight);
+          };
+          // -------------------------------------
+          
           if (!reel.gridSprites) {
             reel.gridSprites = new Array(reelHeight).fill(null);
           } else if (reel.gridSprites.length < reelHeight) {
@@ -2005,7 +2104,7 @@ export default class GridRenderer {
               return;
             }
 
-            const targetY = this._rowToY(targetRow, col);
+            const targetY = getDynamicY(targetRow);
             occupiedRows.add(targetRow);
             reel.gridSprites[targetRow] = sprite;
             if (cell.row !== targetRow) {
@@ -2077,12 +2176,15 @@ export default class GridRenderer {
               return;
             }
 
-            const scale = Math.min(this.symbolSize / texture.width, this.symbolSize / texture.height);
+            // --- APPLY DYNAMIC SCALE (same as renderGridFromMatrix) ---
+            // Scale sprite to fill width and dynamic height (stretch to fit)
+            const scaleX = this.reelWidth / texture.width;
+            const scaleY = dynamicSymbolHeight / texture.height;
             sprite.texture = texture;
-            sprite.scale.set(scale);
+            sprite.scale.set(scaleX, scaleY);
             sprite.x = Math.round((this.reelWidth - sprite.width) / 2);
-            const targetY = this._rowToY(row, col);
-            sprite.y = targetY - this.symbolSize * 1.1;
+            const targetY = getDynamicY(row);
+            sprite.y = targetY - dynamicSymbolHeight * 1.1;
             sprite.alpha = 1;
             sprite.visible = true;
 
