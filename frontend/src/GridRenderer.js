@@ -435,12 +435,15 @@ export default class GridRenderer {
 
       // Create mask to clip symbols to visible area
       // Mask starts at symbolSize to hide the top buffer row
+      // IMPORTANT: For Megaways, mask must always be maxRows height to cover all possible reel heights
+      // The mask should be sized to the maximum possible height, not the current height
       // IMPORTANT: Mask must be a child of the container being masked OR in the same parent
       // We'll add it as a child of reelContainer so it's in local coordinates
       const mask = new PIXI.Graphics();
       mask.beginFill(0xffffff);
       const maskY = this.symbolSize; // Always start at symbolSize to hide buffer
-      const maskHeight = this.symbolSize * reelHeight;
+      // Use maxRows for mask height to ensure all symbols are properly clipped
+      const maskHeight = this.symbolSize * this.maxRows;
       mask.drawRect(0, maskY, this.reelWidth, maskHeight);
       mask.endFill();
       // Position mask in local coordinates (relative to reelContainer)
@@ -492,9 +495,10 @@ export default class GridRenderer {
           this.symbolSize / symbol.texture.height
         );
         
-        // Position symbols using 0-based coordinate system (row 0 at y=0)
+        // Position symbols using 0-based coordinate system
+        // Row 0 (bottom) should start at symbolSize (mask start) to align with visible area
         // Buffer symbol for looping is at j=reelHeight, which is outside the visible mask
-        symbol.y = j * this.symbolSize;
+        symbol.y = this.symbolSize + (j * this.symbolSize);
         symbol.x = Math.round((this.reelWidth - symbol.width) / 2);
         
         reel.symbols.push(symbol);
@@ -599,28 +603,35 @@ export default class GridRenderer {
           if (!symbol || symbol.destroyed) continue;
 
           const prevy = symbol.y;
-          // Use 0-based coordinate system: row 0 at y=0, consistent with grid layer
+          // Position symbols starting from symbolSize (mask start) to align with visible area
+          // Row 0 (bottom) is at symbolSize, row 1 is at 2*symbolSize, etc.
           // The modulo loop handles the buffer symbol, which stays outside the visible mask
-          // Calculate position with wrapping
-          const newY = ((reel.position + j) % reel.symbols.length) * this.symbolSize;
+          // Calculate position with wrapping, offset by symbolSize to align with mask
+          const baseY = this.symbolSize; // Start at mask start position
+          const newY = baseY + ((reel.position + j) % reel.symbols.length) * this.symbolSize;
           symbol.y = newY;
           
           // Ensure symbol stays within reasonable bounds (mask will clip, but this prevents extreme positions)
-          // Symbols should be between -symbolSize (buffer above) and (reelHeight + 1) * symbolSize (buffer below)
-          const maxY = (reel.height || this.rows) * this.symbolSize + this.symbolSize;
-          if (symbol.y < -this.symbolSize * 2 || symbol.y > maxY) {
+          // Symbols should be between symbolSize (visible start) and symbolSize + (maxRows + 1) * symbolSize (buffer below)
+          const maxY = this.symbolSize + (this.maxRows + 1) * this.symbolSize;
+          if (symbol.y < this.symbolSize - this.symbolSize || symbol.y > maxY) {
             // Wrap to valid range if somehow out of bounds
-            symbol.y = ((symbol.y % maxY) + maxY) % maxY;
+            const wrappedY = ((symbol.y - baseY) % (reel.symbols.length * this.symbolSize) + reel.symbols.length * this.symbolSize) % (reel.symbols.length * this.symbolSize);
+            symbol.y = baseY + wrappedY;
           }
 
           // Update textures randomly during spin, but ONLY if final textures haven't been applied
           // Once resultMatrix is set, we should use final textures, not random ones
+          // Check if symbol crossed the visible area boundary (accounting for symbolSize offset)
+          const visibleStart = this.symbolSize;
+          const visibleEnd = this.symbolSize + this.maxRows * this.symbolSize;
           if (
             allowSpinLayout &&
             this.running &&
             !this.resultMatrix && // CRITICAL: Don't overwrite if result is known
-            prevy >= this.rows * this.symbolSize &&
-            symbol.y < this.rows * this.symbolSize &&
+            prevy >= visibleEnd &&
+            symbol.y < visibleEnd &&
+            symbol.y >= visibleStart &&
             this.currentAssets
           ) {
             const slotTextures = this.availableSymbols
@@ -898,7 +909,8 @@ export default class GridRenderer {
               const symbol = reel.symbols[j];
               if (symbol && !symbol.destroyed) {
                 // For spinning symbols, use fixed spacing for smooth animation
-                symbol.y = ((reel.position + j) % reel.symbols.length) * this.symbolSize;
+                // Position starting from symbolSize (mask start) to align with visible area
+                symbol.y = this.symbolSize + ((reel.position + j) % reel.symbols.length) * this.symbolSize;
                 // Check if this symbol is in the visible area
                 if (symbol.y >= visibleStart && symbol.y < visibleEnd) {
                   const textureUrl = symbol.texture?.baseTexture?.resource?.url || 'unknown';
