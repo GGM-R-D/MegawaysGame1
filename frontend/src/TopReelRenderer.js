@@ -362,25 +362,29 @@ export default class TopReelRenderer {
    */
   preloadSpinResult(symbols, assets) {
     if (!symbols || !Array.isArray(symbols) || symbols.length !== this.symbolCount) {
-      console.warn('[TopReelRenderer] preloadSpinResult: Invalid symbols', symbols);
+      console.warn('[TopReelRenderer] preloadSpinResult: Invalid symbols', symbols, 'expected length', this.symbolCount);
       return;
     }
 
     this.currentAssets = assets;
     this.currentSymbols = symbols;
 
-    // CRITICAL: Map backend symbols to sprites that will be visible at targetPosition
-    // Top reel scrolls horizontally (right to left), so we need to calculate which sprite
-    // will end up at each visible column position when the reel stops
+    console.log(`[TopReelRenderer] preloadSpinResult: Received symbols from backend:`, symbols);
+    console.log(`[TopReelRenderer] preloadSpinResult: coversReels:`, this.coversReels);
+
+    // SIMPLIFIED APPROACH: Match main grid logic - directly map symbols to sprites
+    // Backend sends symbols in order: [col1, col2, col3, col4] for reels 1-4
+    // The ticker positions sprites based on: symbolX = rightmostX - wrappedPos
+    // where wrappedPos = ((normalizedPos + (i * symbolSpacing)) % totalSymbolWidth)
     
     const symbolSpacing = this.reelWidth;
     const totalSymbolWidth = this.symbols.length * symbolSpacing;
+    const rightmostX = this.coversReels[this.coversReels.length - 1] * this.reelWidth + this.reelWidth;
     
     // Use targetPosition if set, otherwise use current position
-    // Position is in pixels (negative for right-to-left scrolling)
     const targetPos = Number.isFinite(this.targetPosition) ? this.targetPosition : this.position;
     
-    // Normalize target position for wrapping (convert to [0, totalSymbolWidth) range)
+    // Normalize target position for wrapping (in pixels)
     let normalizedTargetPos = targetPos;
     if (normalizedTargetPos < 0) {
       normalizedTargetPos = (normalizedTargetPos % totalSymbolWidth + totalSymbolWidth) % totalSymbolWidth;
@@ -388,41 +392,30 @@ export default class TopReelRenderer {
       normalizedTargetPos = normalizedTargetPos % totalSymbolWidth;
     }
     
-    console.log(`[TopReelRenderer] preloadSpinResult: targetPos=${targetPos}, normalizedTargetPos=${normalizedTargetPos}, totalSymbolWidth=${totalSymbolWidth}`);
+    // Convert to "symbol units" (how many symbol widths we've scrolled)
+    const normalizedPosInUnits = normalizedTargetPos / symbolSpacing;
+    
+    console.log(`[TopReelRenderer] preloadSpinResult: targetPos=${targetPos}, normalizedTargetPos=${normalizedTargetPos}, normalizedPosInUnits=${normalizedPosInUnits}`);
 
-    // Apply textures to sprites that will be visible at targetPosition
-    // Backend sends symbols in order: [col1, col2, col3, col4] for reels 1-4
-    // At targetPosition, we want:
-    // - symbols[0] to be at column 1 (leftmost visible, offset 3)
-    // - symbols[1] to be at column 2 (offset 2)
-    // - symbols[2] to be at column 3 (offset 1)
-    // - symbols[3] to be at column 4 (rightmost visible, offset 0)
-    
-    // From ticker: wrappedPos = ((normalizedPos + (i * symbolSpacing)) % totalSymbolWidth)
-    // symbolX = rightmostX - wrappedPos
-    // For visible index j (0-3), we want symbolX = rightmostX - (3 - j) * symbolSpacing
-    // So: wrappedPos = (3 - j) * symbolSpacing
-    // => (normalizedTargetPos + i * symbolSpacing) % totalSymbolWidth = (3 - j) * symbolSpacing
-    // => (normalizedTargetPos + i * symbolSpacing) = (3 - j) * symbolSpacing + k * totalSymbolWidth for some k
-    // => i * symbolSpacing = (3 - j) * symbolSpacing - normalizedTargetPos + k * totalSymbolWidth
-    // => i = (3 - j) - (normalizedTargetPos / symbolSpacing) + k * symbols.length
-    // => i = ((3 - j) - Math.floor(normalizedTargetPos / symbolSpacing) + symbols.length) % symbols.length
-    
+    // For each visible column, map the symbol directly to the sprite that will be there
+    // Backend symbols[0] = column 1 (leftmost), symbols[3] = column 4 (rightmost)
+    // At targetPosition, we want symbols[visibleIndex] to be at coversReels[visibleIndex]
     for (let visibleIndex = 0; visibleIndex < this.symbolCount && visibleIndex < symbols.length; visibleIndex++) {
       const symbolCode = symbols[visibleIndex];
       if (!symbolCode || symbolCode === 'NULL') {
         continue;
       }
 
-      // Calculate sprite index that will be at this visible position
-      // visibleIndex 0 = leftmost (offset 3), visibleIndex 3 = rightmost (offset 0)
+      // Calculate which sprite index will be at this visible position
+      // The visible positions are at offsets: 3, 2, 1, 0 (from left to right)
+      // From ticker: wrappedPos = ((normalizedPos + i * spacing) % totalWidth)
+      // For visible index j, we want wrappedPos = (3 - j) * spacing
+      // So: (normalizedPosInUnits + i) % symbols.length = (3 - j)
+      // => i = ((3 - j) - normalizedPosInUnits + symbols.length) % symbols.length
+      
       const targetOffset = this.symbolCount - 1 - visibleIndex; // 3, 2, 1, 0
-      
-      // Convert normalizedTargetPos from pixels to "symbol units"
-      const normalizedPosInUnits = Math.floor(normalizedTargetPos / symbolSpacing);
-      
-      // Formula: i = (targetOffset - normalizedPosInUnits + symbols.length) % symbols.length
-      let spriteIndex = (targetOffset - normalizedPosInUnits + this.symbols.length) % this.symbols.length;
+      let spriteIndex = (targetOffset - Math.floor(normalizedPosInUnits) + this.symbols.length) % this.symbols.length;
+      if (spriteIndex < 0) spriteIndex += this.symbols.length;
 
       const sprite = this.symbols[spriteIndex];
       if (sprite && !sprite.destroyed) {
@@ -435,8 +428,12 @@ export default class TopReelRenderer {
           sprite.texture = texture;
           sprite.scale.set(scale);
           
-          console.log(`[TopReelRenderer] preloadSpinResult: Visible ${visibleIndex} (col ${this.coversReels[visibleIndex]}) -> Sprite ${spriteIndex}, Symbol ${symbolCode}, targetOffset=${targetOffset}, normalizedPosInUnits=${normalizedPosInUnits}`);
+          console.log(`[TopReelRenderer] preloadSpinResult: Visible ${visibleIndex} (col ${this.coversReels[visibleIndex]}) -> Sprite ${spriteIndex}, Symbol ${symbolCode}, targetOffset=${targetOffset}`);
+        } else {
+          console.warn(`[TopReelRenderer] preloadSpinResult: No texture found for symbol ${symbolCode}`);
         }
+      } else {
+        console.warn(`[TopReelRenderer] preloadSpinResult: Sprite ${spriteIndex} not available`);
       }
     }
   }
@@ -451,17 +448,20 @@ export default class TopReelRenderer {
   transitionSpinToGrid(symbols, assets) {
     return new Promise((resolve) => {
       requestAnimationFrame(() => {
+        console.log(`[TopReelRenderer] transitionSpinToGrid: Received symbols:`, symbols);
         this.currentAssets = assets;
         this.currentSymbols = symbols || [];
 
         // Hide spin layer
         this.spinLayer.visible = false;
         this.isSpinning = false;
+        console.log(`[TopReelRenderer] transitionSpinToGrid: Hiding spin layer, showing grid layer`);
 
         // Show grid layer with final symbols
         this.gridLayer.visible = true;
         this._renderGridSymbols(symbols, assets);
 
+        console.log(`[TopReelRenderer] transitionSpinToGrid: Grid layer visible=${this.gridLayer.visible}, spin layer visible=${this.spinLayer.visible}`);
         resolve();
       });
     });
@@ -485,18 +485,25 @@ export default class TopReelRenderer {
     this.gridSprites = [];
 
     if (!symbols || !Array.isArray(symbols)) {
+      console.warn('[TopReelRenderer] _renderGridSymbols: Invalid symbols', symbols);
       return;
     }
 
+    console.log(`[TopReelRenderer] _renderGridSymbols: Rendering ${symbols.length} symbols:`, symbols);
+    console.log(`[TopReelRenderer] _renderGridSymbols: coversReels:`, this.coversReels);
+
     // Create grid sprites for each symbol
+    // Backend sends symbols in order: [col1, col2, col3, col4] for reels 1-4
     for (let i = 0; i < this.symbolCount && i < symbols.length; i++) {
       const symbolCode = symbols[i];
       if (!symbolCode || symbolCode === 'NULL') {
+        console.warn(`[TopReelRenderer] _renderGridSymbols: Skipping invalid symbol at index ${i}:`, symbolCode);
         continue;
       }
 
       const texture = assets.get(symbolCode) ?? assets.get('PLACEHOLDER');
       if (!texture) {
+        console.warn(`[TopReelRenderer] _renderGridSymbols: No texture found for symbol ${symbolCode} at index ${i}`);
         continue;
       }
 
@@ -516,7 +523,11 @@ export default class TopReelRenderer {
 
       this.gridSprites.push(sprite);
       this.gridLayer.addChild(sprite);
+      
+      console.log(`[TopReelRenderer] _renderGridSymbols: Created sprite for index ${i}, symbol ${symbolCode}, column ${col}, x=${sprite.x}`);
     }
+    
+    console.log(`[TopReelRenderer] _renderGridSymbols: Created ${this.gridSprites.length} grid sprites`);
   }
 
   /**
