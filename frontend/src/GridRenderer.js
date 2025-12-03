@@ -367,9 +367,10 @@ export default class GridRenderer {
       this.topReelBlur.blurY = 0;
       this.topReelContainer.filters = [this.topReelBlur];
       
-      // Create multiple symbol instances for smooth horizontal scrolling (8-10 symbols)
-      const topReelBufferSymbols = 6; // Extra symbols for smooth scrolling
-      const totalTopReelSymbols = topReelSymbolCount + topReelBufferSymbols;
+      // Create many symbol instances for smooth horizontal scrolling with visible passing symbols
+      // Need enough symbols to create the visual effect of many symbols passing through
+      const topReelBufferSymbols = 20; // Many extra symbols for visible scrolling effect
+      const totalTopReelSymbols = topReelSymbolCount + topReelBufferSymbols; // Total: 24 symbols
       this.topReelSymbols = [];
       
       for (let i = 0; i < totalTopReelSymbols; i++) {
@@ -558,7 +559,8 @@ export default class GridRenderer {
           
           // Update textures during spin (random symbols while spinning)
           // BUT: Don't overwrite if final textures have been applied
-          if (allowSpinLayout && this.currentAssets && this.availableSymbols.length > 0 && Math.random() < 0.1 && !this.resultMatrix) {
+          // Increase frequency to 30% so more symbols are visible passing through
+          if (allowSpinLayout && this.currentAssets && this.availableSymbols.length > 0 && Math.random() < 0.3 && !this.resultMatrix) {
             const slotTextures = this.availableSymbols
               .map(alias => this.currentAssets.get(alias))
               .filter(texture => texture != null);
@@ -801,31 +803,53 @@ export default class GridRenderer {
     // Start top reel spinning (horizontal, right to left)
     if (this.topReelContainer && this.topReelSpinLayer && this.topReelSymbols.length > 0) {
       this.topReelSpinning = true;
+      
+      // CRITICAL: Normalize current position to prevent accumulation of large negative values
+      // This ensures smooth spinning on subsequent spins
+      const symbolCount = this.topReelSymbols.length;
+      const totalSymbolWidth = symbolCount * this.reelWidth;
+      if (this.topReelPosition < -totalSymbolWidth || this.topReelPosition > totalSymbolWidth) {
+        // Normalize position to prevent overflow
+        this.topReelPosition = ((this.topReelPosition % totalSymbolWidth) + totalSymbolWidth) % totalSymbolWidth;
+      }
+      
       this.topReelPreviousPosition = this.topReelPosition;
       
       // Calculate target position for horizontal spin (right to left = negative movement)
-      // Use same timing and speed as the first vertical reel (reel 0) for consistent speed
-      const firstReelIndex = 0;
+      // Top reel should spin faster and stop before the main grid for visual appeal
       const extra = Math.floor(Math.random() * 3);
       const baseTime = this.isTurboMode ? SPIN_BASE_TIME * 0.4 : SPIN_BASE_TIME;
       const staggerTime = this.isTurboMode ? SPIN_STAGGER_TIME * 0.4 : SPIN_STAGGER_TIME;
-      // Use same timing as first reel to match spin speed
-      const time = baseTime + firstReelIndex * staggerTime + extra * staggerTime;
       
-      // Target position: spin horizontally (negative for right-to-left)
-      // Use same distance as first reel to match spin speed (positions per millisecond)
-      const spinDistance = SPIN_BASE_TARGET + firstReelIndex * SPIN_STAGGER_TARGET + extra;
-      this.topReelTargetPosition = this.topReelPosition - spinDistance;
+      // Top reel spins with enough time to see many symbols pass through
+      // But still stops before the main grid for visual appeal
+      const firstReelTime = baseTime + extra * staggerTime;
+      // Use 85% of first reel time - enough to see symbols pass, but still faster
+      const topReelTime = firstReelTime * 0.85;
+      
+      // Add slight delay (50ms) so top reel starts slightly after main grid for visual sync
+      const startDelay = 0.05; // 50ms delay in seconds
+      
+      // Calculate spin distance - spin MANY symbols through the visible positions
+      // topReelPosition is in pixels (reelWidth units), so we multiply by reelWidth
+      // We want to see many symbols pass through, so spin through many symbol widths
+      // Spin through 50-60 symbols to create the visual effect of many symbols passing
+      const symbolsToSpin = SPIN_BASE_TARGET * 4 + extra * 3; // Spin through many symbols (60+ symbols)
+      const spinDistancePixels = symbolsToSpin * this.reelWidth; // Convert to pixels
+      this.topReelTargetPosition = this.topReelPosition - spinDistancePixels;
       
       // Create GSAP tween for top reel (horizontal animation)
       if (this.topReelTween) {
         this.topReelTween.kill();
       }
       
+      // Use smoother easing for more fluid motion
+      // Power2.out provides smooth deceleration that looks more natural
       this.topReelTween = gsap.to(this, {
         topReelPosition: this.topReelTargetPosition,
-        duration: time / 1000, // Convert ms to seconds
-        ease: this.backout(SPIN_EASING_AMOUNT),
+        duration: (topReelTime / 1000), // Convert ms to seconds
+        delay: startDelay, // Start slightly after main grid
+        ease: 'power2.out', // Smoother easing for more fluid motion
         // GSAP will update topReelPosition smoothly, ticker will read it each frame
         onComplete: () => {
           this.topReelSpinning = false;
@@ -1445,48 +1469,91 @@ export default class GridRenderer {
     // Top reel symbols come from this.topReel (set by setTopReel)
     // This is a separate array of 4 symbols for reels 1-4
     const topReelCovers = [1, 2, 3, 4];
-    const appliedTopReelSymbols = [];
     
-    // Apply final textures to the visible symbols in the top reel
-    for (let i = 0; i < topReelCovers.length; i++) {
-      const col = topReelCovers[i];
-      if (col >= this.columns) continue;
+    // CRITICAL FIX: Apply textures to symbols that will be visible when reel stops
+    // The problem: topReelSymbols is a scrolling strip, so indices 0-3 may not be visible
+    // Solution: For each strip symbol, calculate if it will be visible when stopped, and update it
+    
+    if (!this.topReel || !Array.isArray(this.topReel) || this.topReel.length < 4) {
+      console.warn('[GridRenderer] _applyResultToTopReelSpinLayer: this.topReel not set', this.topReel);
+      return;
+    }
+    
+    const symbolCount = this.topReelSymbols.length; // Total symbols in strip (10)
+    const rightmostX = topReelCovers[topReelCovers.length - 1] * this.reelWidth + this.reelWidth;
+    const maskStartX = topReelCovers[0] * this.reelWidth;
+    const visibleSymbolCount = 4; // Number of visible symbols (columns 1-4)
+    
+    // Use target position to calculate which symbols will be visible (same formula as ticker)
+    const targetPositionInSymbolUnits = this.topReelTargetPosition / this.reelWidth;
+    
+    // Track which columns we've updated (to avoid duplicates)
+    const columnsUpdated = new Set();
+    const appliedTopReelSymbols = new Array(visibleSymbolCount).fill(null);
+    
+    // Iterate through ALL strip symbols and update those that will be visible
+    for (let i = 0; i < symbolCount; i++) {
+      const symbol = this.topReelSymbols[i];
+      if (!symbol || symbol.destroyed) continue;
       
-      // Get symbol from topReel array (set by setTopReel)
-      const symbolCode = this.topReel && this.topReel[i] ? this.topReel[i] : null;
-      if (!symbolCode) {
-        appliedTopReelSymbols.push('NULL');
-        continue;
-      }
+      // EXACT same formula as ticker (line 554-555)
+      const wrappedIndex = ((targetPositionInSymbolUnits + i) % symbolCount + symbolCount) % symbolCount;
+      const symbolXWhenStopped = rightmostX - (wrappedIndex * this.reelWidth);
       
-      const texture = assets.get(symbolCode);
-      
-      if (texture && i < this.topReelSymbols.length) {
-        const symbol = this.topReelSymbols[i];
-        if (symbol && !symbol.destroyed) {
-          const oldTexture = symbol.texture?.baseTexture?.resource?.url || 'unknown';
-          // Apply texture smoothly - don't change position, just texture
-          symbol.texture = texture;
-          const scale = Math.min(
-            this.symbolSize / texture.width,
-            this.symbolSize / texture.height
-          );
-          symbol.scale.set(scale);
-          // Keep current position - don't reposition here
+      // Check if this symbol will be visible (within mask: columns 1-4)
+      // Use center of symbol for more accurate column matching
+      const symbolCenterX = symbolXWhenStopped; // Symbol X is already at center (anchor 0.5)
+      if (symbolCenterX >= maskStartX && symbolCenterX < rightmostX) {
+        // Calculate which column this symbol will be in (0-3 for columns 1-4)
+        // Column 1 (leftmost) should show this.topReel[0], Column 4 (rightmost) should show this.topReel[3]
+        // Use center of each column for matching
+        const columnIndex = Math.round((symbolCenterX - maskStartX) / this.reelWidth);
+        const clampedColumnIndex = Math.max(0, Math.min(3, columnIndex));
+        
+        // Only update if we haven't already updated this column (first match wins)
+        if (!columnsUpdated.has(clampedColumnIndex)) {
+          const symbolCode = this.topReel[clampedColumnIndex];
           
-          appliedTopReelSymbols.push(symbolCode);
-          
-          const newTexture = symbol.texture?.baseTexture?.resource?.url || 'unknown';
-          if (oldTexture !== newTexture && oldTexture !== 'unknown') {
-            console.log(`[GridRenderer] _applyResultToTopReelSpinLayer: Top reel symbol ${i} (col ${col}): Changed from ${oldTexture} to ${symbolCode}`);
+          if (symbolCode) {
+            const texture = assets.get(symbolCode);
+            if (texture) {
+              const oldTexture = symbol.texture?.baseTexture?.resource?.url || 'unknown';
+              symbol.texture = texture;
+              const scale = Math.min(
+                this.symbolSize / texture.width,
+                this.symbolSize / texture.height
+              );
+              symbol.scale.set(scale);
+              columnsUpdated.add(clampedColumnIndex);
+              appliedTopReelSymbols[clampedColumnIndex] = symbolCode;
+              
+              if (oldTexture !== texture.baseTexture?.resource?.url) {
+                console.log(`[GridRenderer] _applyResultToTopReelSpinLayer: Strip symbol ${i} → Column ${clampedColumnIndex + 1}: ${symbolCode} (X=${symbolXWhenStopped.toFixed(1)})`);
+              }
+            } else {
+              console.warn(`[GridRenderer] _applyResultToTopReelSpinLayer: Missing texture for ${symbolCode}`);
+            }
           }
         }
-      } else {
-        appliedTopReelSymbols.push('MISSING');
       }
     }
     
-    console.log('[GridRenderer] _applyResultToTopReelSpinLayer: Top reel symbols applied:', appliedTopReelSymbols);
+    // Check if all columns were updated
+    const missingColumns = [];
+    for (let col = 0; col < visibleSymbolCount; col++) {
+      if (!columnsUpdated.has(col)) {
+        missingColumns.push(col + 1);
+      }
+    }
+    if (missingColumns.length > 0) {
+      console.warn(`[GridRenderer] _applyResultToTopReelSpinLayer: Failed to update columns: ${missingColumns.join(', ')}. Target position: ${this.topReelTargetPosition}, Position in units: ${targetPositionInSymbolUnits.toFixed(2)}`);
+    }
+    
+    console.log('[GridRenderer] _applyResultToTopReelSpinLayer: Top reel symbols applied.');
+    console.log('  Expected:', this.topReel);
+    console.log('  Applied:', appliedTopReelSymbols);
+    console.log('  Columns updated:', Array.from(columnsUpdated).map(c => c + 1).join(', '));
+    console.log('  Target position:', this.topReelTargetPosition, 'Position in units:', targetPositionInSymbolUnits.toFixed(2));
   }
 
   _applyResultToReelSpinLayer(reel) {
