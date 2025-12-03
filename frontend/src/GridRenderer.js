@@ -1090,17 +1090,35 @@ export default class GridRenderer {
         continue;
       }
 
-      const reelSymbolCount = reelSymbolsForColumn.length;
+      // CRITICAL: Use ReelHeights to determine symbol count (source of truth from backend)
+      // Backend sends ReelHeights that include top reel for columns 1-4
+      const topReelCovers = [1, 2, 3, 4]; // Columns covered by top reel
+      let reelSymbolCount;
+      
+      if (this.reelHeights && Array.isArray(this.reelHeights) && this.reelHeights.length > col && typeof this.reelHeights[col] === 'number' && this.reelHeights[col] > 0) {
+        // ReelHeights includes top reel for columns 1-4, but arrays don't
+        reelSymbolCount = this.reelHeights[col];
+        if (topReelCovers.includes(col)) {
+          reelSymbolCount = reelSymbolCount - 1; // Exclude top reel symbol
+        }
+        // Ensure we don't exceed array length (safety check)
+        if (reelSymbolCount > reelSymbolsForColumn.length) {
+          console.warn(`[GridRenderer] renderGridFromMatrix: Reel ${col} - reelSymbolCount (${reelSymbolCount}) > array.length (${reelSymbolsForColumn.length}), using array.length`);
+          reelSymbolCount = reelSymbolsForColumn.length;
+        }
+        console.log(`[GridRenderer] renderGridFromMatrix: Reel ${col} - ReelHeights[${col}]=${this.reelHeights[col]}, topReelCovers=${topReelCovers.includes(col)}, calculated count=${reelSymbolCount}, array.length=${reelSymbolsForColumn.length}`);
+      } else {
+        // Fallback to array length if ReelHeights not available
+        reelSymbolCount = reelSymbolsForColumn.length;
+        console.warn(`[GridRenderer] renderGridFromMatrix: Reel ${col} - ReelHeights not available, using array.length: ${reelSymbolCount}`);
+      }
 
-      // --- CRITICAL: DYNAMIC SIZING ---
-      // Fixed visual height for all reels (maxRows * symbolSize in pixels)
-      // This matches the mask height in buildReels: maskHeight = symbolSize * maxRows
-      const fixedReelHeightPixels = this.maxRows * this.symbolSize;
-      // Calculate dynamic height per symbol: divide fixed height by number of symbols
-      // If 2 symbols: each gets 50% of space. If 7 symbols: each gets 1/7th of space
-      // Use reelSymbolCount (array length) - backend should send correct number of symbols
-      const dynamicSymbolHeight = fixedReelHeightPixels / reelSymbolCount;
-      // -------------------------------------
+      // Use fixed cell size so reels visually grow/shrink instead of stretching textures
+      const maskStart = this.symbolSize;
+      const totalMaskHeight = this.maxRows * this.symbolSize;
+      const missingRows = Math.max(0, this.maxRows - reelSymbolCount);
+      const topOffset = maskStart + missingRows * this.symbolSize;
+      const bottomLimit = maskStart + totalMaskHeight;
 
       if (!reel.gridSprites) {
         reel.gridSprites = new Array(reelSymbolCount).fill(null);
@@ -1144,50 +1162,20 @@ export default class GridRenderer {
 
         sprite.texture = texture;
 
-        // --- APPLY DYNAMIC SCALE ---
-        // Scale sprite to fill width and dynamic height exactly
-        // For Megaways: symbols should STRETCH to fill their allocated space
-        // CRITICAL: Each symbol must be exactly dynamicSymbolHeight tall to fit all symbols
+        // Maintain a consistent cell size so we literally draw as many symbols as backend reports
         const scaleX = this.reelWidth / texture.width;
-        const scaleY = dynamicSymbolHeight / texture.height;
-        
-        // Apply scaling - symbols will stretch to fill their allocated space
+        const scaleY = this.symbolSize / texture.height;
         sprite.scale.set(scaleX, scaleY);
-        
-        // Center horizontally
         sprite.x = Math.round((this.reelWidth - sprite.width) / 2);
 
-        // --- POSITIONING ---
-        // Backend Row 0 is BOTTOM. Frontend y=0 is TOP.
-        // The mask starts at y = symbolSize and has height = fixedReelHeightPixels
-        // We want to fit all symbols within this mask area, stacking from bottom to top
-        const maskStart = this.symbolSize;
-        const maskEnd = maskStart + fixedReelHeightPixels;
-        
-        // INVERTED Y CALCULATION:
-        // Backend sends Row 0 as BOTTOM. Pixi renders Y=0 as TOP.
-        // We want Row 0 at the bottom of the reel, Row (Count-1) at the top.
+        // Backend Row 0 = bottom, Pixi y=0 = top → invert row index and offset by unused rows
         const visualRowIndex = (reelSymbolCount - 1) - row;
+        sprite.y = topOffset + (visualRowIndex * this.symbolSize);
         
-        // Position sprite: top of sprite at the start of its allocated space
-        // Each symbol gets exactly dynamicSymbolHeight of space
-        // Row 0 (bottom) should be at maskStart + (reelSymbolCount-1) * dynamicSymbolHeight
-        // Row N (top) should be at maskStart + 0 * dynamicSymbolHeight
-        sprite.y = maskStart + (visualRowIndex * dynamicSymbolHeight);
-        
-        // CRITICAL: Ensure sprite height is exactly dynamicSymbolHeight
-        // This guarantees all symbols fit within the mask
-        const actualHeight = sprite.height;
-        if (Math.abs(actualHeight - dynamicSymbolHeight) > 0.5) {
-          // Recalculate scale to ensure exact height match
-          const correctedScaleY = dynamicSymbolHeight / texture.height;
-          sprite.scale.y = correctedScaleY;
-        }
-        
-        // Verify sprite is within mask bounds (only log warnings if outside)
+        // Verify sprite is within viewable bounds
         const spriteBottom = sprite.y + sprite.height;
-        if (sprite.y < maskStart - 1 || spriteBottom > maskEnd + 1) {
-          console.warn(`[GridRenderer] renderGridFromMatrix: Reel ${col}, Row ${row} sprite OUTSIDE mask bounds! y=${sprite.y.toFixed(1)}, bottom=${spriteBottom.toFixed(1)}, maskStart=${maskStart.toFixed(1)}, maskEnd=${maskEnd.toFixed(1)}`);
+        if (sprite.y < maskStart - 1 || spriteBottom > bottomLimit + 1) {
+          console.warn(`[GridRenderer] renderGridFromMatrix: Reel ${col}, Row ${row} sprite OUTSIDE viewable bounds! y=${sprite.y.toFixed(1)}, bottom=${spriteBottom.toFixed(1)}, maskStart=${maskStart.toFixed(1)}, bottomLimit=${bottomLimit.toFixed(1)}`);
         }
         
         sprite.visible = true;
@@ -1307,7 +1295,6 @@ export default class GridRenderer {
    * @returns {Promise<void>} Resolves when transition completes
    */
   transitionSpinToGrid(reelSymbols, assets) {
-    // reelSymbols is now a jagged array: reelSymbols[column][row]
     if (!reelSymbols || !Array.isArray(reelSymbols) || reelSymbols.length < this.columns) {
       console.warn('[GridRenderer] transitionSpinToGrid: Invalid reel symbols', { length: reelSymbols?.length, columns: this.columns });
       return Promise.resolve();
@@ -1317,174 +1304,17 @@ export default class GridRenderer {
       columns: reelSymbols.length,
       reelLengths: reelSymbols.map(r => r?.length || 0),
       isSpinning: this.isSpinning,
-      isRunning: this.running,
-      resultMatrixExists: !!this.resultMatrix
+      isRunning: this.running
     });
 
-    // Preload the result to ensure spinning symbols have correct textures
-    // This prevents texture flicker when reels stop
-    // NOTE: This may have already been called in preloadSpinResult, but calling again to be safe
-    if (!this.resultMatrix) {
-      console.log('[GridRenderer] transitionSpinToGrid: resultMatrix not set, calling preloadSpinResult');
-      this.preloadSpinResult(reelSymbols, assets);
-    } else {
-      console.log('[GridRenderer] transitionSpinToGrid: resultMatrix already set, textures should already be applied');
-    }
-
-    // Stop any further position updates by ensuring isSpinning is false
     this.isSpinning = false;
-    
-    // Ensure grid layer is hidden during transition to prevent duplicate symbols
-    for (let col = 0; col < this.columns; col++) {
-      const reel = this.reels[col];
-      if (!reel) continue;
-      if (reel.gridLayer) {
-        reel.gridLayer.visible = false;
-      }
-      if (Array.isArray(reel.gridSprites)) {
-        reel.gridSprites.forEach((sprite) => {
-          if (sprite) {
-            sprite.visible = false;
-          }
-        });
-      }
-    }
 
-    // Wait a frame to ensure textures are updated and positions are stable
     return new Promise((resolve) => {
       requestAnimationFrame(() => {
-        this.currentAssets = assets;
-        if (this.reels.length === 0) {
-          this.buildReels(assets);
-        }
+        this.renderGridFromMatrix(reelSymbols, assets);
 
-        // reelSymbols is a jagged array: reelSymbols[column][row]
-        // Create and position grid sprites FIRST (while spin layer is still visible)
-        // This ensures they're ready and positioned before we switch
-        for (let col = 0; col < this.columns && col < reelSymbols.length; col++) {
-          const reel = this.reels[col];
-          if (!reel) continue;
-
-          const reelSymbolsForColumn = reelSymbols[col];
-          if (!Array.isArray(reelSymbolsForColumn)) {
-            console.warn(`[GridRenderer] transitionSpinToGrid: Reel ${col} is not an array`);
-            continue;
-          }
-
-          const reelHeight = reelSymbolsForColumn.length;
-          
-          if (!reel.gridSprites) {
-            reel.gridSprites = new Array(reelHeight).fill(null);
-          } else if (reel.gridSprites.length < reelHeight) {
-            // Extend array if needed
-            reel.gridSprites = [...reel.gridSprites, ...new Array(reelHeight - reel.gridSprites.length).fill(null)];
-          }
-
-          for (let row = 0; row < reelHeight; row++) {
-            const symbolCode = reelSymbolsForColumn[row];
-
-            if (symbolCode == null || symbolCode === '') {
-              if (reel.gridSprites[row]) {
-                reel.gridSprites[row].visible = false;
-                reel.gridSprites[row] = null;
-              }
-              continue;
-            }
-
-            let sprite = reel.gridSprites[row];
-            if (!sprite || sprite.destroyed) {
-              sprite = new PIXI.Sprite();
-              reel.gridSprites[row] = sprite;
-              // Always add to gridLayer if it exists, never directly to container
-              if (reel.gridLayer) {
-                reel.gridLayer.addChild(sprite);
-              } else {
-                reel.container.addChild(sprite);
-              }
-              // Start hidden - will be shown when we enter grid mode
-              sprite.visible = false;
-            }
-
-            const texture = assets.get(symbolCode) ?? assets.get('PLACEHOLDER');
-            if (!texture) {
-              continue;
-            }
-
-            // --- APPLY DYNAMIC SCALE (same as renderGridFromMatrix) ---
-            // Fixed visual height for all reels (maxRows * symbolSize in pixels)
-            const fixedReelHeightPixels = this.maxRows * this.symbolSize;
-            // Calculate dynamic height per symbol (2 symbols = 50% each, 7 symbols = ~14.3% each)
-            const dynamicSymbolHeight = fixedReelHeightPixels / reelHeight;
-            
-            // Scale sprite to fill width and dynamic height exactly (stretch to fit)
-            const scaleX = this.reelWidth / texture.width;
-            const scaleY = dynamicSymbolHeight / texture.height;
-            sprite.texture = texture;
-            sprite.scale.set(scaleX, scaleY);
-            
-            sprite.x = Math.round((this.reelWidth - sprite.width) / 2);
-            
-            // CRITICAL: Ensure sprite height is exactly dynamicSymbolHeight
-            const actualHeight = sprite.height;
-            if (Math.abs(actualHeight - dynamicSymbolHeight) > 0.5) {
-              const correctedScaleY = dynamicSymbolHeight / texture.height;
-              sprite.scale.y = correctedScaleY;
-            }
-            
-            // --- POSITIONING (same as renderGridFromMatrix) ---
-            // Backend Row 0 is BOTTOM. Position from bottom to top within mask area
-            const maskStart = this.symbolSize;
-            const visualRowIndex = (reelHeight - 1) - row;
-            // Position sprite to fill its allocated space exactly
-            sprite.y = maskStart + (visualRowIndex * dynamicSymbolHeight);
-            sprite.visible = false; // Keep hidden until we switch to grid mode
-            sprite.alpha = 1;
-          }
-        }
-        
-        // Update top reel if present - use topReel array (set by setTopReel)
-        if (this.topReelContainer && this.topReelSpinLayer && this.topReelSymbols && this.topReelSymbols.length > 0 && this.topReel) {
-          const topReelCovers = [1, 2, 3, 4];
-          
-          // Ensure top reel is visible
-          this.topReelContainer.visible = true;
-          this.topReelSpinLayer.visible = true;
-          
-          // Update the 4 visible symbols in the top reel
-          for (let i = 0; i < topReelCovers.length && i < this.topReel.length; i++) {
-            const col = topReelCovers[i];
-            if (col >= this.columns) continue;
-            
-            const symbolCode = this.topReel[i];
-            if (!symbolCode) continue;
-            
-            const texture = assets.get(symbolCode);
-            
-            if (texture && i < this.topReelSymbols.length) {
-              const symbol = this.topReelSymbols[i];
-              if (symbol && !symbol.destroyed) {
-                symbol.texture = texture;
-                const scale = Math.min(
-                  this.symbolSize / texture.width,
-                  this.symbolSize / texture.height
-                );
-                symbol.scale.set(scale);
-                // Position symbol correctly above the reel (centered in reel column)
-                symbol.x = col * this.reelWidth + (this.reelWidth / 2) - (symbol.width / 2);
-                symbol.y = Math.round((this.symbolSize - symbol.height) / 2);
-                symbol.visible = true;
-                symbol.alpha = 1;
-              }
-            }
-          }
-        }
-
-        // Now instantly switch layers - grid sprites are already positioned correctly
-        // The switch happens synchronously to avoid any visual gap
-        // First ensure spin layer is hidden, then show grid layer
         this.reels.forEach((reel) => {
           if (!reel) return;
-          // Hide spin layer first
           if (reel.spinLayer) {
             reel.spinLayer.visible = false;
           }
@@ -1496,12 +1326,10 @@ export default class GridRenderer {
             });
           }
         });
-        
-        // Then show grid layer
+
         this.enterGridMode();
-        // Store jagged array structure
+        // Store jagged array structure for cascades
         this.resultMatrix = reelSymbols.map(reel => [...reel]);
-        this.isCascading = true;
         
         resolve();
       });
@@ -1545,126 +1373,22 @@ export default class GridRenderer {
    * @returns {void}
    */
   preloadSpinResult(reelSymbols, assets) {
-    // reelSymbols is now a jagged array: reelSymbols[column][row]
     if (!reelSymbols || !Array.isArray(reelSymbols) || reelSymbols.length < this.columns) {
       console.warn('[GridRenderer] preloadSpinResult: Invalid reel symbols', { length: reelSymbols?.length, columns: this.columns });
       return;
     }
 
-    console.log('[GridRenderer] preloadSpinResult: Starting to apply final textures', {
-      columns: reelSymbols.length,
-      reelLengths: reelSymbols.map(r => r?.length || 0),
-      isSpinning: this.isSpinning,
-      isRunning: this.running,
-      resultMatrixExists: !!this.resultMatrix
-    });
+    this.currentAssets = assets;
 
     if (!this.reels || this.reels.length === 0) {
       this.buildReels(assets);
     }
 
-    if (!this.reels || this.reels.length === 0) {
-      console.error('[GridRenderer] preloadSpinResult: No reels available');
-      return;
-    }
-
-    this.currentAssets = assets;
-    
-    // CRITICAL: Set resultMatrix IMMEDIATELY to prevent ticker from overwriting with random textures
-    // This must be set BEFORE applying textures so the ticker knows to stop random updates
-    // Store jagged array structure
+    // Store jagged array structure so the ticker stops applying random textures
     this.resultMatrix = reelSymbols.map(reel => [...reel]);
-    console.log('[GridRenderer] preloadSpinResult: resultMatrix set, ticker should stop random updates');
 
-    // Ensure grid layer is hidden during spin to prevent duplicate symbols
-    for (let col = 0; col < this.columns; col += 1) {
-      const reel = this.reels[col];
-      if (!reel) continue;
-      
-      // Hide grid layer and sprites while spinning
-      if (reel.gridLayer) {
-        reel.gridLayer.visible = false;
-      }
-      if (Array.isArray(reel.gridSprites)) {
-        reel.gridSprites.forEach((sprite) => {
-          if (sprite) {
-            sprite.visible = false;
-          }
-        });
-      }
-    }
-
-    // Apply final textures immediately to all reels when result is known
-    // This ensures symbols are visible before the reels stop
-    // CRITICAL: Map backend results to the specific sprites that will end up inside the visible area at targetPosition
-    console.log('[GridRenderer] preloadSpinResult: Applying textures to', this.columns, 'reels');
-    for (let col = 0; col < this.columns && col < reelSymbols.length; col += 1) {
-      const reel = this.reels[col];
-      if (!reel || !Array.isArray(reel.symbols) || reel.symbols.length === 0) {
-        console.warn(`[GridRenderer] preloadSpinResult: Reel ${col} is invalid or has no symbols`);
-        continue;
-      }
-
-      const symbolsForCol = reelSymbols[col]; // The final symbols for this column
-      if (!Array.isArray(symbolsForCol)) {
-        console.warn(`[GridRenderer] preloadSpinResult: Reel ${col} symbols is not an array`);
-        continue;
-      }
-
-      const reelHeight = symbolsForCol.length;
-      const symbolCount = reel.symbols.length; // Total sprites in the loop
-
-      // CRITICAL: Use targetPosition (where it will stop), not current position
-      const targetPos = Number.isFinite(reel.targetPosition) ? reel.targetPosition : reel.position;
-
-      console.log(`[GridRenderer] preloadSpinResult: Applying textures to reel ${col}, targetPos=${targetPos}, reelHeight=${reelHeight}`);
-
-      for (let row = 0; row < reelHeight; row += 1) {
-        const symbolCode = symbolsForCol[row];
-        
-        if (!symbolCode || symbolCode === 'NULL' || symbolCode === '') {
-          continue;
-        }
-
-        // Calculate which sprite index in the loop corresponds to this row at the target position
-        // Formula must match ticker's y-position logic: 
-        // y = symbolSize + ((position + j) % count) * symbolSize
-        // We want the sprite 'j' that lands at 'row'
-        // At targetPos: symbolSize + ((targetPos + j) % count) * symbolSize = symbolSize + row * symbolSize
-        // => ((targetPos + j) % count) = row
-        // => (targetPos + j) % count == row
-        // => j = (row - targetPos) % count
-        
-        // Handle negative modulo correctly
-        let spriteIndex = (row - Math.floor(targetPos)) % symbolCount;
-        if (spriteIndex < 0) spriteIndex += symbolCount;
-
-        const sprite = reel.symbols[spriteIndex];
-        
-        if (sprite && !sprite.destroyed) {
-          const texture = assets.get(symbolCode) ?? assets.get('PLACEHOLDER');
-          if (texture) {
-            // Reset scale to ensure it looks right immediately
-            const scale = Math.min(this.symbolSize / texture.width, this.symbolSize / texture.height);
-            sprite.texture = texture;
-            sprite.scale.set(scale);
-            sprite.x = Math.round((this.reelWidth - sprite.width) / 2);
-            
-            console.log(`[GridRenderer] preloadSpinResult: Reel ${col}, Row ${row} -> Sprite ${spriteIndex}, Symbol ${symbolCode}`);
-          }
-        }
-      }
-      
-      reel.finalTexturesApplied = true;
-      
-      // Log what symbols were applied to this reel (for debugging)
-      console.log(`[GridRenderer] preloadSpinResult: Reel ${col} (height ${reelHeight}) should show (bottom to top):`, symbolsForCol);
-    }
-    
-    // Apply final textures to top reel symbols immediately
-    console.log('[GridRenderer] preloadSpinResult: Applying textures to top reel');
+    // Update top reel textures so the topper stops on the correct symbols
     this._applyResultToTopReelSpinLayer(reelSymbols, assets);
-    console.log('[GridRenderer] preloadSpinResult: All textures applied');
   }
   
   _applyResultToTopReelSpinLayer(reelSymbols, assets) {
@@ -1930,23 +1654,63 @@ export default class GridRenderer {
     const prevReelSymbols = this.resultMatrix; // Already jagged array
     const removedPositions = new Set(); // Store as "col,row" strings
     
-    // Find removed symbols by comparing prev and next
-    for (let col = 0; col < this.columns && col < prevReelSymbols.length && col < nextReelSymbols.length; col++) {
-      const prevReel = prevReelSymbols[col];
-      const nextReel = nextReelSymbols[col];
-      if (!Array.isArray(prevReel) || !Array.isArray(nextReel)) continue;
-      
-      const maxRows = Math.max(prevReel.length, nextReel.length);
-      for (let row = 0; row < maxRows; row++) {
-        const prevSymbol = row < prevReel.length ? prevReel[row] : null;
-        const nextSymbol = row < nextReel.length ? nextReel[row] : null;
+    // CRITICAL: Use pendingWinningPositions if available (from highlightWins)
+    // This tells us exactly which symbols are winning and should be removed
+    if (this.pendingWinningPositions && Array.isArray(this.pendingWinningPositions) && this.pendingWinningPositions.length > 0) {
+      // Use the winning positions directly (already in col,row format)
+      this.pendingWinningPositions.forEach((pos) => {
+        if (pos && Number.isFinite(pos.col) && Number.isFinite(pos.row)) {
+          const col = pos.col;
+          const row = pos.row;
+          // Verify this position exists in the jagged array
+          if (col >= 0 && col < prevReelSymbols.length) {
+            const reel = prevReelSymbols[col];
+            if (Array.isArray(reel) && row >= 0 && row < reel.length) {
+              removedPositions.add(`${col},${row}`);
+            }
+          }
+        }
+      });
+      console.log(`[GridRenderer] playCascadeStep: Using pendingWinningPositions - ${this.pendingWinningPositions.length} positions`);
+    } else if (this.pendingWinningIndices && Array.isArray(this.pendingWinningIndices) && this.pendingWinningIndices.length > 0) {
+      // Fallback: Convert flat indices to jagged array positions
+      this.pendingWinningIndices.forEach((flatIdx) => {
+        if (!Number.isFinite(flatIdx)) return;
+        // Try standard conversion: row = floor(idx / columns), col = idx % columns
+        let row = Math.floor(flatIdx / this.columns);
+        let col = flatIdx % this.columns;
+        // Verify this position exists in the jagged array
+        if (col >= 0 && col < prevReelSymbols.length) {
+          const reel = prevReelSymbols[col];
+          if (Array.isArray(reel) && row >= 0 && row < reel.length) {
+            removedPositions.add(`${col},${row}`);
+          }
+        }
+      });
+      console.log(`[GridRenderer] playCascadeStep: Using pendingWinningIndices - ${this.pendingWinningIndices.length} indices`);
+    }
+    
+    // Fallback: Find removed symbols by comparing prev and next (if no pending positions)
+    if (removedPositions.size === 0) {
+      for (let col = 0; col < this.columns && col < prevReelSymbols.length && col < nextReelSymbols.length; col++) {
+        const prevReel = prevReelSymbols[col];
+        const nextReel = nextReelSymbols[col];
+        if (!Array.isArray(prevReel) || !Array.isArray(nextReel)) continue;
         
-        // If symbol was removed (was present, now null or different)
-        if (prevSymbol && prevSymbol !== nextSymbol) {
-          removedPositions.add(`${col},${row}`);
+        const maxRows = Math.max(prevReel.length, nextReel.length);
+        for (let row = 0; row < maxRows; row++) {
+          const prevSymbol = row < prevReel.length ? prevReel[row] : null;
+          const nextSymbol = row < nextReel.length ? nextReel[row] : null;
+          
+          // If symbol was removed (was present, now null or different)
+          if (prevSymbol && prevSymbol !== nextSymbol) {
+            removedPositions.add(`${col},${row}`);
+          }
         }
       }
     }
+    
+    console.log(`[GridRenderer] playCascadeStep: Found ${removedPositions.size} symbols to remove:`, Array.from(removedPositions));
 
     const fadePromises = [];
     removedPositions.forEach((pos) => {
@@ -2015,20 +1779,28 @@ export default class GridRenderer {
           }
           
           // Get actual reel height for this column (variable for Megaways)
-          const reelHeight = Math.max(prevReel.length, nextReel.length);
+          // Use ReelHeights if available, otherwise use array length
+          const topReelCovers = [1, 2, 3, 4];
+          let reelHeight;
+          if (this.reelHeights && Array.isArray(this.reelHeights) && this.reelHeights.length > col && typeof this.reelHeights[col] === 'number' && this.reelHeights[col] > 0) {
+            reelHeight = this.reelHeights[col];
+            if (topReelCovers.includes(col)) {
+              reelHeight = reelHeight - 1; // Exclude top reel symbol
+            }
+            reelHeight = Math.min(reelHeight, Math.max(prevReel.length, nextReel.length));
+          } else {
+            reelHeight = Math.max(prevReel.length, nextReel.length);
+          }
           
-          // --- CRITICAL: DYNAMIC SIZING (same as renderGridFromMatrix) ---
-          // Fixed visual height for all reels (maxRows * symbolSize)
-          const fixedReelHeight = this.maxRows * this.symbolSize;
-          // Calculate dynamic height per symbol
-          const dynamicSymbolHeight = fixedReelHeight / reelHeight;
-          // Helper function to calculate Y position using dynamic height
-          const getDynamicY = (row) => {
-            const maskStart = this.symbolSize;
+          const maskStart = this.symbolSize;
+          const totalMaskHeight = this.maxRows * this.symbolSize;
+          const missingRows = Math.max(0, this.maxRows - reelHeight);
+          const topOffset = maskStart + missingRows * this.symbolSize;
+          const cellHeight = this.symbolSize;
+          const getFixedY = (row) => {
             const visualRowIndex = (reelHeight - 1) - row;
-            return maskStart + (visualRowIndex * dynamicSymbolHeight);
+            return topOffset + (visualRowIndex * cellHeight);
           };
-          // -------------------------------------
           
           if (!reel.gridSprites) {
             reel.gridSprites = new Array(reelHeight).fill(null);
@@ -2085,7 +1857,7 @@ export default class GridRenderer {
               return;
             }
 
-            const targetY = getDynamicY(targetRow);
+            const targetY = getFixedY(targetRow);
             occupiedRows.add(targetRow);
             reel.gridSprites[targetRow] = sprite;
             if (cell.row !== targetRow) {
@@ -2157,15 +1929,14 @@ export default class GridRenderer {
               return;
             }
 
-            // --- APPLY DYNAMIC SCALE (same as renderGridFromMatrix) ---
-            // Scale sprite to fill width and dynamic height (stretch to fit)
+            // Match renderGridFromMatrix: fixed cell size per symbol
             const scaleX = this.reelWidth / texture.width;
-            const scaleY = dynamicSymbolHeight / texture.height;
+            const scaleY = cellHeight / texture.height;
             sprite.texture = texture;
             sprite.scale.set(scaleX, scaleY);
             sprite.x = Math.round((this.reelWidth - sprite.width) / 2);
-            const targetY = getDynamicY(row);
-            sprite.y = targetY - dynamicSymbolHeight * 1.1;
+            const targetY = getFixedY(row);
+            sprite.y = targetY - cellHeight * 1.1;
             sprite.alpha = 1;
             sprite.visible = true;
 
@@ -2221,6 +1992,7 @@ export default class GridRenderer {
           }
           this.lastSymbolMatrix = flattened;
           this.pendingWinningIndices = null;
+          this.pendingWinningPositions = null;
         });
       });
   }

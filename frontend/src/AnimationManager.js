@@ -153,17 +153,57 @@ export default class AnimationManager {
         const postDelay = this.isTurboMode ? POST_HIGHLIGHT_DELAY * TURBO_MULTIPLIER : POST_HIGHLIGHT_DELAY;
         await this._delay(postDelay);
 
+        // Extract winning positions for cascade removal
+        // Backend may send indices (flat) or we need to find by symbol code
         const winningIndices = [];
+        const winningPositions = []; // Store as {col, row} for jagged arrays
+        
         (step.winsAfterCascade ?? []).forEach((win) => {
-          if (Array.isArray(win?.indices)) {
+          if (!win) return;
+          
+          // Try to get explicit indices first (flat array format)
+          if (Array.isArray(win.indices)) {
             win.indices.forEach((idx) => {
               if (Number.isFinite(idx)) {
                 winningIndices.push(idx);
+                // Convert flat index to col,row for jagged array
+                const row = Math.floor(idx / this.grid.columns);
+                const col = idx % this.grid.columns;
+                winningPositions.push({ col, row });
               }
             });
           }
+          
+          // If no indices, find by symbol code in jagged array
+          if (winningIndices.length === 0 && win.symbolCode && Array.isArray(step.reelSymbolsBefore)) {
+            const targetSymbol = win.symbolCode;
+            const targetCount = Number.isFinite(win.count) ? win.count : null;
+            const matches = [];
+            
+            // Find all matching symbols in jagged array
+            for (let col = 0; col < step.reelSymbolsBefore.length; col += 1) {
+              const reel = step.reelSymbolsBefore[col];
+              if (Array.isArray(reel)) {
+                for (let row = 0; row < reel.length; row += 1) {
+                  if (reel[row] === targetSymbol) {
+                    matches.push({ col, row });
+                  }
+                }
+              }
+            }
+            
+            // Use first N matches if count is specified
+            const positionsToUse = targetCount && matches.length > targetCount 
+              ? matches.slice(0, targetCount) 
+              : matches;
+            winningPositions.push(...positionsToUse);
+          }
         });
+        
+        // Store both formats for compatibility
         this.grid.pendingWinningIndices = winningIndices;
+        this.grid.pendingWinningPositions = winningPositions; // Jagged array positions (col, row)
+        console.log(`[AnimationManager] highlightWins: Found ${winningPositions.length} winning positions:`, winningPositions);
 
         if (Array.isArray(step.reelSymbolsAfter)) {
           const fadeDuration = this.isTurboMode ? CASCADE_FADE_DURATION * TURBO_MULTIPLIER : CASCADE_FADE_DURATION;
@@ -177,6 +217,7 @@ export default class AnimationManager {
       if (this.grid) {
         this.grid.isCascading = false;
         this.grid.pendingWinningIndices = null;
+        this.grid.pendingWinningPositions = null;
       }
     };
 
