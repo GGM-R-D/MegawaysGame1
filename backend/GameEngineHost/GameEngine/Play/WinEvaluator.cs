@@ -202,13 +202,18 @@ public sealed class WinEvaluator
                 }
             }
             
-            // Must have at least 2 contiguous reels starting from Reel 0
-            if (contiguousReels < 2)
+            // CRITICAL: Ways to Win (Buffalo King Megaways style)
+            // Minimum requirements:
+            // - BIRD (main symbol): at least 2 contiguous reels
+            // - All other symbols: at least 3 contiguous reels
+            var minContiguousReels = targetSymbol == "BIRD" ? 2 : 3;
+            if (contiguousReels < minContiguousReels)
             {
                 continue;
             }
             
             // Calculate ways: product of symbol counts on contiguous reels
+            // Example: Reel0(1) × Reel1(2) × Reel2(1) = 2 Ways
             var ways = 1;
             for (var i = 0; i < contiguousReels; i++)
             {
@@ -220,16 +225,11 @@ public sealed class WinEvaluator
                 continue;
             }
             
-            // Total symbol count for paytable lookup
-            var totalSymbolCount = symbolsPerReel.Take(contiguousReels).Sum();
-            if (totalSymbolCount < 2)
-            {
-                continue;
-            }
-            
-            // Find best matching paytable entry
+            // CRITICAL: Paytable lookup now uses number of consecutive reels, not total symbols
+            // entry.Multipliers.Count now represents "Number of Reels" (e.g., Count 3 = 3 reels)
+            // Find best matching paytable entry based on contiguous reels
             var bestMatch = entry.Multipliers
-                .Where(mult => totalSymbolCount >= mult.Count)
+                .Where(mult => contiguousReels >= mult.Count)
                 .OrderByDescending(mult => mult.Count)
                 .FirstOrDefault();
             
@@ -238,8 +238,8 @@ public sealed class WinEvaluator
                 continue;
             }
             
-            // Payout calculation: base multiplier × ways
-            // For Megaways, payout = bet × base_multiplier × ways
+            // Payout calculation: Bet × SymbolValue(for N reels) × Ways
+            // Formula: Total Win = Bet * SymbolValue(for N reels) * Ways
             var basePayout = Money.FromBet(bet.Amount, bestMatch.Multiplier);
             var payoutAmount = basePayout.Amount * ways;
             
@@ -256,6 +256,9 @@ public sealed class WinEvaluator
             // Note: This is a simplified conversion - in reality, we'd need reel heights
             // For now, we'll leave indices empty or calculate based on reel structure
             // The frontend should use ReelSymbols structure instead
+            
+            // Store total symbol count for display purposes (sum of all symbols across contiguous reels)
+            var totalSymbolCount = symbolsPerReel.Take(contiguousReels).Sum();
             
             wins.Add(new SymbolWin(
                 entry.SymbolCode, 

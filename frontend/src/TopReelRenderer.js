@@ -597,11 +597,13 @@ export default class TopReelRenderer {
     });
 
     return Promise.all(fadePromises).then(() => {
-      // Slide remaining symbols LEFT to fill gaps
+      // CRITICAL: Fill direction is LEFT
+      // When a symbol is removed, remaining symbols to the RIGHT should slide LEFT to fill the gap
       const slidePromises = [];
       const occupiedPositions = new Set();
 
-      // Calculate new positions (slide left)
+      // Calculate new positions (slide left to fill gaps)
+      // Process from LEFT to RIGHT (i = 0 to symbolCount-1)
       for (let i = 0; i < this.symbolCount; i++) {
         const nextSymbol = i < nextSymbols.length ? nextSymbols[i] : null;
         if (!nextSymbol || nextSymbol === 'NULL') {
@@ -609,6 +611,7 @@ export default class TopReelRenderer {
         }
 
         // Find which sprite should move to this position
+        // Look for sprites to the RIGHT (j > i) that haven't been removed
         let sourceIndex = -1;
         for (let j = i; j < this.symbolCount; j++) {
           if (!removedIndices.includes(j) && this.gridSprites[j] && !occupiedPositions.has(j)) {
@@ -617,6 +620,7 @@ export default class TopReelRenderer {
           }
         }
 
+        // If we found a sprite to the right, slide it LEFT to fill this gap
         if (sourceIndex >= 0 && sourceIndex !== i) {
           const sprite = this.gridSprites[sourceIndex];
           if (sprite && !sprite.destroyed) {
@@ -625,6 +629,7 @@ export default class TopReelRenderer {
 
             slidePromises.push(
               new Promise((resolve) => {
+                // Slide LEFT (from higher X to lower X)
                 gsap.to(sprite, {
                   x: targetX,
                   duration: slideDuration,
@@ -643,7 +648,7 @@ export default class TopReelRenderer {
         }
       }
 
-      // Spawn new symbols from RIGHT
+      // CRITICAL: Spawn new symbols from RIGHT edge and slide LEFT into position
       for (let i = 0; i < this.symbolCount; i++) {
         const nextSymbol = i < nextSymbols.length ? nextSymbols[i] : null;
         if (!nextSymbol || nextSymbol === 'NULL') {
@@ -667,9 +672,10 @@ export default class TopReelRenderer {
         );
         sprite.scale.set(scale);
 
-        // Start from RIGHT edge
+        // CRITICAL: Start from RIGHT edge (x > totalWidth)
+        // Calculate the rightmost position beyond the visible area
         const rightmostX = this.coversReels[this.coversReels.length - 1] * this.reelWidth + this.reelWidth;
-        sprite.x = rightmostX;
+        sprite.x = rightmostX; // Start from right edge
         sprite.y = Math.round((this.symbolSize - sprite.height) / 2);
         sprite.alpha = 1;
         sprite.visible = true;
@@ -677,12 +683,13 @@ export default class TopReelRenderer {
         this.gridSprites[i] = sprite;
         this.gridLayer.addChild(sprite);
 
-        // Slide to target position
+        // CRITICAL: Slide LEFT (from right edge to target position)
+        // Target position is at the column center
         const targetX = this.coversReels[i] * this.reelWidth + (this.reelWidth / 2) - (sprite.width / 2);
         slidePromises.push(
           new Promise((resolve) => {
             gsap.to(sprite, {
-              x: targetX,
+              x: targetX, // Slide to smaller X (LEFT)
               duration: slideDuration,
               ease: 'power2.inOut', // Smooth slide, no bounce
               onComplete: resolve

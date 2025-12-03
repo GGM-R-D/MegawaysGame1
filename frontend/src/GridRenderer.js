@@ -1936,23 +1936,25 @@ export default class GridRenderer {
             });
           }
 
+          // CRITICAL: Gravity DOWN - Collect survivors from BOTTOM to TOP (row 0 to reelHeight-1)
+          // When symbol at index 0 (bottom) is removed, symbol at index 1 should drop DOWN to index 0
           const survivors = [];
-          for (let row = reelHeight - 1; row >= 0; row--) {
+          for (let row = 0; row < reelHeight; row++) {
             const cell = prevCol[row];
             if (!cell || !cell.sprite || cell.isRemoved) {
               continue;
             }
-            survivors.unshift(cell);
+            survivors.push(cell); // Add in order from bottom (row 0) to top (row N-1)
           }
 
+          // Get target rows that need symbols (from bottom to top)
           const targetRows = nextCol.filter((c) => c.symbolCode != null).map((c) => c.row);
           const survivorTargets = [];
 
-          for (let i = 0; i < survivors.length; i++) {
-            const targetRow = targetRows[targetRows.length - survivors.length + i];
-            if (targetRow === undefined) {
-              continue;
-            }
+          // CRITICAL: Assign survivors to BOTTOM-MOST target rows first (gravity down)
+          // This ensures symbols drop DOWN from higher positions to fill lower positions
+          for (let i = 0; i < survivors.length && i < targetRows.length; i++) {
+            const targetRow = targetRows[i]; // Start from bottom (row 0)
             survivorTargets.push({ cell: survivors[i], targetRow });
           }
 
@@ -1971,8 +1973,10 @@ export default class GridRenderer {
               reel.gridSprites[cell.row] = null;
             }
 
-            // Stagger drops by row for realistic physics (lower rows hit first)
-            const staggerDelay = cell.row * 0.05; // 50ms delay per row
+            // CRITICAL: Stagger drops by target row for realistic physics
+            // Lower rows (higher Y, bottom of screen) should drop first
+            // This creates the downward cascade effect
+            const staggerDelay = targetRow * 0.05; // 50ms delay per row (bottom rows drop first)
             
             dropPromises.push(
               new Promise((resolve) => {
@@ -2043,12 +2047,17 @@ export default class GridRenderer {
             sprite.scale.set(scaleX, scaleY);
             sprite.x = Math.round((this.reelWidth - sprite.width) / 2);
             const targetY = getDynamicY(row);
+            // CRITICAL: Start new symbols from ABOVE (negative offset) so they drop DOWNWARD
+            // Row 0 (bottom) should start higher up, row N-1 (top) should start even higher
+            // This creates the downward drop effect
             sprite.y = targetY - dynamicSymbolHeight * 1.1;
             sprite.alpha = 1;
             sprite.visible = true;
 
-            // Stagger drops by row for realistic physics (lower rows hit first)
-            const staggerDelay = row * 0.05; // 50ms delay per row
+            // CRITICAL: Stagger drops by row for realistic physics
+            // Lower rows (higher Y, bottom of screen) should drop first
+            // This creates the downward cascade effect
+            const staggerDelay = row * 0.05; // 50ms delay per row (bottom rows drop first)
             
             dropPromises.push(
               new Promise((resolve) => {

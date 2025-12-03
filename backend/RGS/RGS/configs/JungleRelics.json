@@ -84,75 +84,83 @@
     {
       "symbolCode": "BIRD",
       "multipliers": [
-        { "count": 8, "multiplier": 10.0 },
-        { "count": 10, "multiplier": 25.0 },
-        { "count": 12, "multiplier": 50.0 },
-        { "count": 15, "multiplier": 100.0 }
+        { "count": 2, "multiplier": 2.0 },
+        { "count": 3, "multiplier": 4.0 },
+        { "count": 4, "multiplier": 8.0 },
+        { "count": 5, "multiplier": 20.0 },
+        { "count": 6, "multiplier": 40.0 }
       ]
     },
     {
       "symbolCode": "SCARAB",
       "multipliers": [
-        { "count": 8, "multiplier": 5.0 },
-        { "count": 10, "multiplier": 10.0 },
-        { "count": 12, "multiplier": 25.0 },
-        { "count": 15, "multiplier": 50.0 }
+        { "count": 3, "multiplier": 2.0 },
+        { "count": 4, "multiplier": 4.0 },
+        { "count": 5, "multiplier": 8.0 },
+        { "count": 6, "multiplier": 20.0 }
       ]
     },
     {
       "symbolCode": "DAGGER",
       "multipliers": [
-        { "count": 8, "multiplier": 4.0 },
-        { "count": 10, "multiplier": 10.0 },
-        { "count": 12, "multiplier": 30.0 }
+        { "count": 3, "multiplier": 1.5 },
+        { "count": 4, "multiplier": 2.5 },
+        { "count": 5, "multiplier": 5.0 },
+        { "count": 6, "multiplier": 12.5 }
       ]
     },
     {
       "symbolCode": "POT",
       "multipliers": [
-        { "count": 8, "multiplier": 3.0 },
-        { "count": 10, "multiplier": 4.0 },
-        { "count": 12, "multiplier": 24.0 }
+        { "count": 3, "multiplier": 1.0 },
+        { "count": 4, "multiplier": 1.5 },
+        { "count": 5, "multiplier": 2.5 },
+        { "count": 6, "multiplier": 7.5 }
       ]
     },
     {
       "symbolCode": "GREEN",
       "multipliers": [
-        { "count": 8, "multiplier": 1.0 },
-        { "count": 10, "multiplier": 1.5 },
-        { "count": 12, "multiplier": 10.0 }
+        { "count": 3, "multiplier": 0.6 },
+        { "count": 4, "multiplier": 1.0 },
+        { "count": 5, "multiplier": 1.5 },
+        { "count": 6, "multiplier": 3.0 }
       ]
     },
     {
       "symbolCode": "RED",
       "multipliers": [
-        { "count": 8, "multiplier": 0.8 },
-        { "count": 10, "multiplier": 1.2 },
-        { "count": 12, "multiplier": 8.0 }
+        { "count": 3, "multiplier": 0.6 },
+        { "count": 4, "multiplier": 1.0 },
+        { "count": 5, "multiplier": 1.5 },
+        { "count": 6, "multiplier": 3.0 }
       ]
     },
     {
       "symbolCode": "BLUE",
       "multipliers": [
-        { "count": 8, "multiplier": 0.5 },
-        { "count": 10, "multiplier": 1.0 },
-        { "count": 12, "multiplier": 5.0 }
+        { "count": 3, "multiplier": 0.4 },
+        { "count": 4, "multiplier": 0.6 },
+        { "count": 5, "multiplier": 1.0 },
+        { "count": 6, "multiplier": 2.0 }
       ]
     },
     {
       "symbolCode": "PURPLE",
       "multipliers": [
-        { "count": 8, "multiplier": 0.4 },
-        { "count": 10, "multiplier": 0.9 },
-        { "count": 12, "multiplier": 4.0 }
+        { "count": 3, "multiplier": 0.4 },
+        { "count": 4, "multiplier": 0.6 },
+        { "count": 5, "multiplier": 1.0 },
+        { "count": 6, "multiplier": 2.0 }
       ]
     },
     {
       "symbolCode": "ORANGE",
       "multipliers": [
-        { "count": 8, "multiplier": 0.25 },
-        { "count": 10, "multiplier": 0.75 },
-        { "count": 12, "multiplier": 2.0 }
+        { "count": 3, "multiplier": 0.2 },
+        { "count": 4, "multiplier": 0.4 },
+        { "count": 5, "multiplier": 0.8 },
+        { "count": 6, "multiplier": 1.5 }
       ]
     }
   ],
