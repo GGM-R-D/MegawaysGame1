@@ -352,7 +352,7 @@ export default class GridRenderer {
       }
       
       this.topReelContainer = new PIXI.Container();
-      this.topReelContainer.y = -this.symbolSize; // Above main grid
+      this.topReelContainer.y = 0; // Positioned directly above main grid (no gap)
       this.topReelContainer.x = 0;
       this.topReelContainer.visible = true; // Ensure visible
       
@@ -413,7 +413,7 @@ export default class GridRenderer {
       mask.drawRect(maskStartX, 0, maskWidth, this.symbolSize);
       mask.endFill();
       mask.x = 0;
-      mask.y = -this.symbolSize; // Align with topReelContainer Y position
+      mask.y = 0; // Align with topReelContainer Y position (now at 0)
       this.topReelContainer.mask = mask;
       this.container.addChild(mask);
       

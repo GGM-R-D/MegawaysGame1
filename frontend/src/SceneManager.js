@@ -611,7 +611,7 @@ export default class SceneManager {
     // Calculate scaled symbol size for top reel space
     const symbolSize = this.gridRenderer?.symbolSize || 140;
     const scaledSymbolSize = symbolSize * scale;
-    const topUIHeight = scaledSymbolSize; // Reserve space for top reel (positioned at -symbolSize)
+    const topUIHeight = scaledSymbolSize; // Reserve space for top reel (one symbol height)
     
     // Recalculate available height with top space reserved
     const availableHeight = rendererHeight - topUIHeight - bottomUIHeight;
@@ -624,7 +624,7 @@ export default class SceneManager {
     this.sceneLayer.x = (rendererWidth - scaledWidth) / 2;
     
     // Position Y: start from top space reserved for top reel
-    // Top reel at -symbolSize will be visible and sit directly above grid with no margin
+    // Top reel sits directly above grid with no gap (top reel at y=0, main grid visible area starts at y=symbolSize)
     const remainingHeight = rendererHeight - topUIHeight - bottomUIHeight;
     this.sceneLayer.y = topUIHeight + (remainingHeight - scaledHeight) / 2;
   }
