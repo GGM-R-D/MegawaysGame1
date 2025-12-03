@@ -213,6 +213,9 @@ export default class SceneManager {
     // Initialize reels with random symbols for initial display
     this.gridRenderer.initializeReels(this.assets);
     
+    // Position megaways display initially
+    this.gridRenderer.positionMegawaysDisplay();
+    
     // Initialize TopReelRenderer for horizontal top reel above reels 2-5
     const reelWidth = this.gridRenderer.reelWidth || 140;
     const symbolSize = this.gridRenderer.symbolSize || 140;
@@ -335,15 +338,19 @@ export default class SceneManager {
     }
 
     // Update ways-to-win display in UI (Megaways feature)
+    // Note: Progressive update happens in GridRenderer as each reel stops
+    // This is just for initial setup/reset
     if (waysToWin !== null && waysToWin !== undefined) {
-      const waysDisplay = document.getElementById('ways-to-win');
       const waysBox = document.getElementById('ways-to-win-box');
-      if (waysDisplay) {
-        waysDisplay.textContent = waysToWin.toLocaleString(); // Format with commas
-      }
       if (waysBox) {
-        waysBox.style.display = 'block'; // Show the display box
+        waysBox.style.display = 'block'; // Always visible
+        // Position it above reel 6
+        if (this.gridRenderer) {
+          this.gridRenderer.positionMegawaysDisplay();
+        }
       }
+      // Number will be updated progressively as reels stop
+      // Don't set initial value here - it starts blank and counts up
     }
 
     // Extract cascade data
@@ -627,6 +634,11 @@ export default class SceneManager {
     // Top reel sits directly above grid with no gap (top reel at y=0, main grid visible area starts at y=symbolSize)
     const remainingHeight = rendererHeight - topUIHeight - bottomUIHeight;
     this.sceneLayer.y = topUIHeight + (remainingHeight - scaledHeight) / 2;
+    
+    // Update megaways display position
+    if (this.gridRenderer) {
+      this.gridRenderer.positionMegawaysDisplay();
+    }
   }
 
   // Removed renderPlaceholderBoard - reels are initialized with random symbols

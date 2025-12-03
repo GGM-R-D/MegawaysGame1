@@ -405,15 +405,16 @@
       </div>
     </div>
     <div id="top-right-hud">
-      <div id="ways-to-win-box" class="hud-card" style="display: none;">
-        <span class="hud-label">MEGAWAYS</span>
-        <span class="hud-value" id="ways-to-win">0</span>
-      </div>
       <div id="timestamp-box">--:--:--</div>
       <div style="display: flex; gap: 10px;">
         <button class="icon-button" id="btn-info" title="Game Info">ℹ️</button>
         <button class="icon-button" id="btn-sound" title="Sound Settings">🔊</button>
       </div>
+    </div>
+    <!-- Megaways display positioned above reel 6 (column 5), offset 100px to the right -->
+    <div id="ways-to-win-box" class="hud-card" style="display: block; position: absolute; top: 0; left: 0; z-index: 10; min-width: 150px; padding: 8px 16px;">
+      <span class="hud-label" style="font-size: 0.65rem;">MEGAWAYS</span>
+      <span class="hud-value" id="ways-to-win" style="font-size: 1.1rem; font-weight: bold;"></span>
     </div>
     <div id="bottom-panel">
       <div class="info-card">

@@ -735,6 +735,12 @@ export default class GridRenderer {
     this.currentAssets = assets;
     this.onSpinComplete = null;
     this.resultMatrix = null;
+    
+    // Reset megaways display to blank at start of spin
+    const waysDisplay = document.getElementById('ways-to-win');
+    if (waysDisplay) {
+      waysDisplay.textContent = '';
+    }
 
     // Build or rebuild reels if needed
     // --- FIX: Only rebuild if reels are missing, NOT if height changed ---
@@ -789,6 +795,17 @@ export default class GridRenderer {
       reel.targetPosition = target;
 
       // Animate reel position with easing
+      // Add callback for each reel to update megaways progressively
+      const onReelComplete = () => {
+        // Update megaways display as each reel stops
+        this.updateMegawaysProgressive(i);
+        
+        // Last reel calls completion
+        if (i === this.reels.length - 1) {
+          this.reelsComplete();
+        }
+      };
+      
       this.tweenTo(
         reel,
         'position',
@@ -796,7 +813,7 @@ export default class GridRenderer {
         time,
         this.backout(SPIN_EASING_AMOUNT), // Easing function for smooth deceleration
         null,
-        i === this.reels.length - 1 ? () => this.reelsComplete() : null // Last reel calls completion
+        onReelComplete
       );
     }
     
@@ -1053,6 +1070,125 @@ export default class GridRenderer {
     }
     
     this._notifySpinComplete();
+  }
+
+  /**
+   * Updates megaways display progressively as each reel stops
+   * Calculates ways: reelHeights[0] × reelHeights[1] × ... × reelHeights[reelIndex]
+   * Shows exactly 6 discrete number changes (one per reel stop)
+   * 
+   * Example with reelHeights [6, 5, 5, 6, 3, 2]:
+   * - Reel 0 stops: 6
+   * - Reel 1 stops: 6 × 5 = 30
+   * - Reel 2 stops: 6 × 5 × 5 = 150
+   * - Reel 3 stops: 6 × 5 × 5 × 6 = 900
+   * - Reel 4 stops: 6 × 5 × 5 × 6 × 3 = 2700
+   * - Reel 5 stops: 6 × 5 × 5 × 6 × 3 × 2 = 5400
+   * 
+   * @param {number} reelIndex - Index of the reel that just stopped (0-5)
+   */
+  updateMegawaysProgressive(reelIndex) {
+    if (!this.reelHeights || !Array.isArray(this.reelHeights) || this.reelHeights.length === 0) {
+      return; // No reel heights available yet
+    }
+
+    // Calculate progressive ways: multiply reel heights up to the current reel
+    // This creates exactly 6 discrete number changes (one per reel stop)
+    let ways = 1;
+    const calculation = [];
+    for (let i = 0; i <= reelIndex && i < this.reelHeights.length; i++) {
+      ways *= this.reelHeights[i];
+      calculation.push(this.reelHeights[i]);
+    }
+
+    console.log(`[GridRenderer] updateMegawaysProgressive: Reel ${reelIndex} stopped - Calculation: ${calculation.join(' × ')} = ${ways}`);
+
+    // Animate from current displayed value to new calculated value
+    // This creates 6 discrete number changes (one per reel stop)
+    this.animateMegawaysCount(ways);
+  }
+
+  /**
+   * Animates the megaways number from current value to target value
+   * Creates discrete number changes - one per reel stop (6 total changes)
+   * Animation starts when first reel stops and finishes when last reel stops
+   * 
+   * @param {number} targetValue - Target value to animate to
+   */
+  animateMegawaysCount(targetValue) {
+    const waysDisplay = document.getElementById('ways-to-win');
+    const waysBox = document.getElementById('ways-to-win-box');
+    
+    if (!waysDisplay || !waysBox) {
+      return;
+    }
+
+    // Ensure box is visible (always visible, but number starts blank)
+    waysBox.style.display = 'block';
+
+    // Get current displayed value (if blank, start from 0)
+    const currentText = waysDisplay.textContent.replace(/,/g, '').trim();
+    const currentValue = currentText === '' ? 0 : parseInt(currentText, 10) || 0;
+
+    // If already at target, no need to animate
+    if (currentValue === targetValue) {
+      waysDisplay.textContent = targetValue.toLocaleString();
+      return;
+    }
+
+    // Animate from current value to target value
+    // Duration: 0.4s per reel stop - creates smooth discrete transitions
+    // This ensures animation completes before next reel stops
+    gsap.to({ value: currentValue }, {
+      value: targetValue,
+      duration: 0.4, // Animation duration per reel stop
+      ease: 'power2.out', // Smooth deceleration
+      onUpdate: function() {
+        waysDisplay.textContent = Math.round(this.targets()[0].value).toLocaleString();
+      }
+    });
+  }
+
+  /**
+   * Positions the megaways div above reel 6 (column 5), offset 100px to the right
+   * Called when grid is positioned or resized
+   */
+  positionMegawaysDisplay() {
+    const waysBox = document.getElementById('ways-to-win-box');
+    if (!waysBox || !this.container) {
+      return;
+    }
+
+    // Get grid container position (from SceneManager's sceneLayer)
+    // The grid container is inside sceneLayer which is positioned by SceneManager
+    // We need to get the sceneLayer's position and scale
+    const sceneLayer = this.container.parent;
+    if (!sceneLayer) {
+      return;
+    }
+
+    // Calculate position of reel 6 (column 5) in screen coordinates
+    // Reel 6 is at column index 5
+    const reel6ColumnIndex = 5;
+    const reel6X = reel6ColumnIndex * this.reelWidth;
+    
+    // Position above the grid (at the top, same level as top reel)
+    const reel6Y = 0; // Top of grid container
+
+    // Apply scene layer transform (position and scale)
+    const sceneX = sceneLayer.x || 0;
+    const sceneY = sceneLayer.y || 0;
+    const sceneScale = sceneLayer.scale?.x || 1;
+
+    // Calculate final screen position
+    // Center of reel 6, then offset 100px to the right
+    const screenX = sceneX + (reel6X * sceneScale) + (this.reelWidth * sceneScale / 2) + 100;
+    const screenY = sceneY + (reel6Y * sceneScale);
+
+    // Position the div (subtract half width to center it)
+    const boxWidth = waysBox.offsetWidth || 150;
+    waysBox.style.left = `${screenX - boxWidth / 2}px`;
+    waysBox.style.top = `${screenY}px`;
   }
 
   tweenTo(object, property, target, time, easing, onchange, oncomplete) {
