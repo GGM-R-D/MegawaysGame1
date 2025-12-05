@@ -579,6 +579,19 @@ export default class GridRenderer {
       
       // Update top reel position (horizontal scrolling)
       if (this.topReelSpinning && this.topReelSpinLayer && this.topReelSymbols.length > 0) {
+        // CRITICAL FIX: When top reel is very close to target position, snap it early
+        // This prevents visible symbol jumps when the reel stops
+        if (Number.isFinite(this.topReelTargetPosition)) {
+          const distanceToTarget = Math.abs(this.topReelPosition - this.topReelTargetPosition);
+          const snapThreshold = this.reelWidth * 0.5; // Snap when within 0.5 reel widths
+          
+          if (distanceToTarget < snapThreshold && this.topReelPosition !== this.topReelTargetPosition) {
+            // Force snap to target position off-screen before stopping
+            this.topReelPosition = this.topReelTargetPosition;
+            this.topReelPreviousPosition = this.topReelTargetPosition;
+          }
+        }
+        
         const positionDelta = this.topReelPosition - this.topReelPreviousPosition;
         if (this.topReelBlur) {
           this.topReelBlur.blurX = allowSpinLayout ? Math.abs(positionDelta) * SPIN_BLUR_MULTIPLIER : 0;
@@ -743,9 +756,9 @@ export default class GridRenderer {
 
             if (t.change) t.change(t);
 
-            // Preload final symbols into the spin layer shortly before stop
-            // NOTE: This should not be needed since we apply textures immediately in preloadSpinResult
-            // But keeping it as a fallback
+            // CRITICAL FIX: When reel is very close to target position (within 0.5 symbol positions),
+            // snap it to target position and update symbol positions OFF-SCREEN before it stops.
+            // This prevents visible symbol jumps when the reel stops.
             if (
               this.resultMatrix &&
               t.property === 'position' &&
@@ -754,7 +767,41 @@ export default class GridRenderer {
               typeof t.object.targetPosition === 'number'
             ) {
               const reel = t.object;
-
+              const distanceToTarget = Math.abs(reel.position - reel.targetPosition);
+              const snapThreshold = 0.5; // Snap when within 0.5 symbol positions
+              
+              // If we're very close to target and haven't snapped yet, force snap to target position
+              // This ensures symbols are in correct positions BEFORE the reel stops (off-screen correction)
+              if (distanceToTarget < snapThreshold && reel.position !== reel.targetPosition) {
+                // Force snap to target position
+                reel.position = reel.targetPosition;
+                reel.previousPosition = reel.targetPosition;
+                
+                // Immediately update all symbol positions to match target position
+                // This happens off-screen so player doesn't see the correction
+                const reelHeight = reel.height || (this.reelHeights && this.reelHeights[reel.index]) || this.rows;
+                const dynamicHeight = this._getDynamicSymbolHeight(reel.index);
+                const maskStart = this.symbolSize;
+                
+                for (let j = 0; j < reel.symbols.length; j++) {
+                  const symbol = reel.symbols[j];
+                  if (!symbol || symbol.destroyed) continue;
+                  
+                  const symbolIndex = (reel.position + j) % reel.symbols.length;
+                  const newY = maskStart + (symbolIndex * dynamicHeight);
+                  symbol.y = newY;
+                }
+                
+                // Ensure textures are applied (fallback if not already done)
+                if (!reel.finalTexturesApplied) {
+                  this._applyResultToReelSpinLayer(reel);
+                  reel.finalTexturesApplied = true;
+                }
+              }
+              
+              // Preload final symbols into the spin layer shortly before stop
+              // NOTE: This should not be needed since we apply textures immediately in preloadSpinResult
+              // But keeping it as a fallback
               if (!reel.finalTexturesApplied && phase >= FINAL_TEXTURE_PRELOAD_PHASE) {
                 console.log(`[GridRenderer] TICKER: Applying textures to reel ${reel.index} at phase ${phase.toFixed(2)} (fallback)`);
                 this._applyResultToReelSpinLayer(reel);
@@ -1027,7 +1074,9 @@ export default class GridRenderer {
             // Log what symbols are visible in this reel after stopping
             const visibleSymbols = [];
             const reelHeight = reel.height || (this.reelHeights && this.reelHeights[i]) || this.rows;
-            const availableHeight = this.symbolSize * reelHeight;
+            // CRITICAL: Use dynamic height (same as ticker) to ensure positions match
+            const dynamicHeight = this._getDynamicSymbolHeight(i);
+            const availableHeight = dynamicHeight * reelHeight;
             const symbolSpacing = availableHeight / reelHeight;
             const visibleStart = this.symbolSize; // Mask starts here
             const visibleEnd = visibleStart + availableHeight;
@@ -1035,9 +1084,10 @@ export default class GridRenderer {
             for (let j = 0; j < reel.symbols.length; j++) {
               const symbol = reel.symbols[j];
               if (symbol && !symbol.destroyed) {
-                // For spinning symbols, use fixed spacing for smooth animation
+                // CRITICAL: Use dynamic height (same as ticker) to ensure positions match exactly
                 // Position starting from symbolSize (mask start) to align with visible area
-                symbol.y = this.symbolSize + ((reel.position + j) % reel.symbols.length) * this.symbolSize;
+                const symbolIndex = (reel.position + j) % reel.symbols.length;
+                symbol.y = this.symbolSize + (symbolIndex * dynamicHeight);
                 // Check if this symbol is in the visible area
                 if (symbol.y >= visibleStart && symbol.y < visibleEnd) {
                   const textureUrl = symbol.texture?.baseTexture?.resource?.url || 'unknown';
