@@ -258,139 +258,6 @@ export default class GridRenderer {
     this.totalHeight = this.symbolSize * this.maxRows + this.symbolSize;
     this.tableSprite = null;
     this.tablePadding = tablePadding;
-    
-    // Symbol mapping from backend format (Sym1, Sym2, etc.) to frontend codes (FACE, BIRD, etc.)
-    this.symbolMap = null; // Will be set when loading reel strips
-    this.reelStrips = null; // Will store loaded reel strips
-  }
-
-  /**
-   * Seeded random number generator for creating deterministic reel strips
-   * 
-   * @param {number} seed - Seed value
-   * @returns {Function} Random function that returns values between 0 and 1
-   */
-  seededRandom(seed) {
-    let value = seed;
-    return function() {
-      value = (value * 9301 + 49297) % 233280;
-      return value / 233280;
-    };
-  }
-
-  /**
-   * Loads reel strips from backend JSON file
-   * 
-   * Converts backend symbol codes (Sym1, Sym2, etc.) to frontend codes (FACE, BIRD, etc.)
-   * using the symbol catalog mapping.
-   * 
-   * @param {string} gameId - Game identifier (e.g., 'JungleRelics')
-   * @returns {Promise<void>}
-   */
-  async loadReelStrips(gameId) {
-    try {
-      // Load symbol catalog to create mapping
-      const configResponse = await fetch(`/configs/${gameId}.json`);
-      if (!configResponse.ok) {
-        throw new Error(`Failed to load game config: ${configResponse.statusText}`);
-      }
-      const config = await configResponse.json();
-      
-      // Create symbol mapping: Sym1 -> FACE, Sym2 -> BIRD, etc.
-      this.symbolMap = {};
-      if (config.symbolCatalog && Array.isArray(config.symbolCatalog)) {
-        for (const symbol of config.symbolCatalog) {
-          if (symbol.sym && symbol.code) {
-            this.symbolMap[symbol.sym] = symbol.code;
-          }
-        }
-      }
-      
-      console.log('[GridRenderer] loadReelStrips: Symbol mapping created', this.symbolMap);
-      
-      // Load reel strips file
-      // Try public/configs first (copied from backend), then try backend path
-      const reelFile = config.reels?.sourceFile || `configs/${gameId}Reelsets.json`;
-      let stripsResponse = await fetch(`/configs/${gameId}Reelsets.json`);
-      if (!stripsResponse.ok) {
-        // Fallback: try the path from config
-        stripsResponse = await fetch(`/${reelFile}`);
-        if (!stripsResponse.ok) {
-          throw new Error(`Failed to load reel strips: ${stripsResponse.statusText}`);
-        }
-      }
-      const stripsData = await stripsResponse.json();
-      
-      // Convert strips from backend format to frontend format
-      // Backend uses "reelsetLow" or "reelsetHigh" based on bet mode
-      // We'll use "reelsetLow" as default (can be changed based on bet mode later)
-      const reelSetKey = 'reelsetLow'; // Default to low strips
-      if (!stripsData[reelSetKey]) {
-        console.warn(`[GridRenderer] loadReelStrips: ${reelSetKey} not found, trying reelsetHigh`);
-        // Try high strips as fallback
-        if (stripsData.reelsetHigh) {
-          this.reelStrips = this.convertReelStrips(stripsData.reelsetHigh);
-        } else {
-          throw new Error(`No reel strips found in ${reelFile}`);
-        }
-      } else {
-        this.reelStrips = this.convertReelStrips(stripsData[reelSetKey]);
-      }
-      
-      console.log(`[GridRenderer] loadReelStrips: Loaded ${this.reelStrips.length} reel strips`);
-    } catch (error) {
-      console.error('[GridRenderer] loadReelStrips: Failed to load reel strips', error);
-      // Fallback: will use random strips (existing behavior)
-      this.reelStrips = null;
-    }
-  }
-
-  /**
-   * Converts backend reel strips from Sym1/Sym2 format to symbol indices
-   * 
-   * @param {Array<Array<string>>} backendStrips - Strips with Sym1, Sym2, etc.
-   * @returns {Array<Array<number>>} Strips with symbol indices matching availableSymbols
-   */
-  convertReelStrips(backendStrips) {
-    if (!backendStrips || !Array.isArray(backendStrips)) {
-      return null;
-    }
-    
-    if (!this.availableSymbols || this.availableSymbols.length === 0) {
-      console.error('[GridRenderer] convertReelStrips: availableSymbols not set yet!');
-      return null;
-    }
-    
-    const convertedStrips = [];
-    
-    for (let reelIndex = 0; reelIndex < backendStrips.length; reelIndex++) {
-      const backendStrip = backendStrips[reelIndex];
-      if (!Array.isArray(backendStrip)) continue;
-      
-      const convertedStrip = [];
-      for (const symCode of backendStrip) {
-        // Convert Sym1 -> FACE, Sym2 -> BIRD, etc. using symbolMap
-        const frontendCode = this.symbolMap[symCode];
-        if (frontendCode) {
-          // Find index in availableSymbols
-          const index = this.availableSymbols.indexOf(frontendCode);
-          if (index >= 0) {
-            convertedStrip.push(index);
-          } else {
-            console.warn(`[GridRenderer] convertReelStrips: Symbol ${frontendCode} (from ${symCode}) not in availableSymbols, using 0`);
-            convertedStrip.push(0);
-          }
-        } else {
-          console.warn(`[GridRenderer] convertReelStrips: Unknown symbol code ${symCode}, using 0`);
-          convertedStrip.push(0);
-        }
-      }
-      
-      convertedStrips.push(convertedStrip);
-      console.log(`[GridRenderer] convertReelStrips: Reel ${reelIndex} - Converted ${backendStrip.length} symbols to ${convertedStrip.length} indices`);
-    }
-    
-    return convertedStrips;
   }
 
   /**
@@ -674,44 +541,14 @@ export default class GridRenderer {
     // In 2D, we simulate this by adjusting the pivot point
     reel.tilesGroup.pivot.y = reel.radius;
     
-    // CRITICAL: Initialize FIXED reel strip (like Unity's symbOrder)
-    // This strip should NOT change between spins - it's the permanent reel configuration
-    // If symbOrder already exists (from previous spin), keep it - don't recreate
-    if (!reel.symbOrder || reel.symbOrder.length === 0) {
-      // Use backend reel strips if loaded, otherwise fallback to random
-      if (this.reelStrips && this.reelStrips[reelIndex] && this.reelStrips[reelIndex].length > 0) {
-        // Use backend reel strip - repeat it to fill tileCount
-        const backendStrip = this.reelStrips[reelIndex];
-        reel.symbOrder = [];
-        for (let i = 0; i < tileCount; i++) {
-          reel.symbOrder.push(backendStrip[i % backendStrip.length]);
-        }
-        console.log(`[GridRenderer] createSlotCylinder: Using BACKEND reel strip for reel ${reelIndex} (${backendStrip.length} symbols, repeated to ${reel.symbOrder.length})`);
-      } else {
-        // Fallback: Create random but fixed strip (same seed per reel for consistency)
-        reel.symbOrder = [];
-        const seed = reelIndex * 12345; // Deterministic seed per reel
-        const rng = this.seededRandom(seed);
-        for (let i = 0; i < tileCount; i++) {
-          reel.symbOrder.push(Math.floor(rng() * slotTextures.length));
-        }
-        console.warn(`[GridRenderer] createSlotCylinder: Backend strips not loaded, using RANDOM strip for reel ${reelIndex} with ${reel.symbOrder.length} symbols`);
-      }
-    } else {
-      console.log(`[GridRenderer] createSlotCylinder: Reusing existing FIXED reel strip for reel ${reelIndex} with ${reel.symbOrder.length} symbols`);
+    // Initialize symbol order array (will be populated from backend result)
+    // For now, create a random order
+    reel.symbOrder = [];
+    for (let i = 0; i < tileCount; i++) {
+      reel.symbOrder.push(Math.floor(Math.random() * slotTextures.length));
     }
-    
-    // CRITICAL: Don't reset nextSymbIndex - it should continue from where it left off
-    // This matches Unity's behavior where the counter keeps incrementing
-    if (reel.nextSymbIndex === undefined || reel.nextSymbIndex === null) {
-      reel.nextSymbIndex = 0;
-    }
-    
-    // Initialize currOrderPosition if not set
-    if (reel.currOrderPosition === undefined || reel.currOrderPosition === null) {
-      reel.currOrderPosition = 0;
-    }
-    
+    reel.nextSymbIndex = 0;
+    reel.currOrderPosition = 0;
     reel.lastChanged = tileCount - 1;
     
     // Create symbols and position them in a circle
@@ -766,29 +603,21 @@ export default class GridRenderer {
   /**
    * Gets next symbol index from order array (Unity GetNextSymb pattern)
    * 
-   * CRITICAL: This counter cycles through symbOrder continuously and NEVER resets
-   * during wrapping. This matches Unity's behavior where the counter keeps incrementing.
-   * 
    * @param {Object} reel - Reel object
    * @returns {number} Symbol index in order array
    */
   getNextSymb(reel) {
-    if (!reel || !reel.symbOrder || reel.symbOrder.length === 0) return 0;
-    
-    // Unity pattern: cycles through symbOrder continuously
-    // Uses a counter that increments and wraps around
-    // CRITICAL: Don't reset this counter - it should continue from where it left off
-    const result = reel.nextSymbIndex % reel.symbOrder.length;
+    const index = reel.nextSymbIndex;
     reel.nextSymbIndex = (reel.nextSymbIndex + 1) % reel.symbOrder.length;
-    return result;
+    return index;
   }
 
   /**
    * Wraps symbol tape during rotation (Unity WrapSymbolTape pattern)
    * 
-   * CRITICAL: Uses the FIXED symbOrder strip (like Unity).
-   * The symbOrder never changes - it's the permanent reel configuration.
-   * During wrapping, we cycle through symbOrder using GetNextSymb() which keeps incrementing.
+   * Updates symbols that have passed out of view with new symbols.
+   * Uses backend symbols from resultMatrix if available, otherwise uses symbol order.
+   * This ensures backend symbols are preloaded during spin.
    * 
    * @param {Object} reel - Reel object
    * @param {number} deltaAngle - Change in rotation angle (degrees)
@@ -801,7 +630,10 @@ export default class GridRenderer {
     const sectors = Math.abs(Math.round(deltaAngle / reel.anglePerTileDeg));
     let found = false;
     
-    if (!reel.symbOrder || reel.symbOrder.length === 0) return;
+    if (reel.symbOrder.length === 0) return;
+    
+    // Check if we have backend symbols to use
+    const hasBackendSymbols = this.resultMatrix && this.resultMatrix[reel.index] && this.resultMatrix[reel.index].length > 0;
     
     // Find symbols that need wrapping
     for (let i = reel.topSector + reel.tempSectors; i < reel.topSector + sectors + 3; i++) {
@@ -812,11 +644,23 @@ export default class GridRenderer {
         found = (ip === reel.lastChanged);
       } else {
         // Wrap tape at last changed - update symbol
-        // CRITICAL: Always use FIXED symbOrder array (Unity approach)
-        // The symbOrder is fixed and never changes - we just cycle through it
-        const orderIndex = this.getNextSymb(reel);
-        const symbIndex = reel.symbOrder[orderIndex % reel.symbOrder.length];
-        const symbolCode = this.availableSymbols[symbIndex] || this.availableSymbols[0];
+        let symbolCode = null;
+        let symbIndex = 0;
+        
+        if (hasBackendSymbols) {
+          // Use backend symbols from resultMatrix
+          // Cycle through backend symbols based on current position
+          const backendSymbols = this.resultMatrix[reel.index];
+          const orderIndex = this.getNextSymb(reel);
+          const backendIndex = orderIndex % backendSymbols.length;
+          symbolCode = backendSymbols[backendIndex];
+          symbIndex = this.availableSymbols.indexOf(symbolCode);
+          if (symbIndex < 0) symbIndex = 0;
+        } else {
+          // Fallback to symbol order (random symbols during initial spin)
+          symbIndex = reel.symbOrder[this.getNextSymb(reel)];
+          symbolCode = this.availableSymbols[symbIndex] || this.availableSymbols[0];
+        }
         
         // Get texture from assets using symbol code
         const texture = assets.get(symbolCode) || assets.get('PLACEHOLDER');
@@ -1082,18 +926,15 @@ export default class GridRenderer {
   applyInitialTexturesToVisibleSymbols(reel, assets) {
     if (!reel || !reel.symbols || reel.symbOrder.length === 0 || !assets) return;
     
-    // CRITICAL: Apply textures to symbols based on symbOrder
-    // This ensures all symbols have correct textures before spin starts
-    // Unity approach: all symbols get textures from symbOrder initially
-    // The symbOrder array already contains backend symbols at positions 0, 1, 2, ...
-    // after updateSymbolOrderFromBackend was called
+    // Apply textures to all symbols based on their position in the order
+    // Unity sets up all symbols initially with textures from symbOrder
     for (let i = 0; i < reel.symbols.length; i++) {
       const symbol = reel.symbols[i];
       if (!symbol || symbol.destroyed) continue;
       
-      // Get symbol from order array
-      // Use modulo to cycle through order
-      const orderIndex = i % reel.symbOrder.length;
+      // Get symbol from order array (each symbol gets texture from order)
+      // Start from currOrderPosition and cycle through
+      const orderIndex = (reel.currOrderPosition + i) % reel.symbOrder.length;
       const symbIndex = reel.symbOrder[orderIndex];
       const symbolCode = this.availableSymbols[symbIndex] || this.availableSymbols[0];
       const texture = assets.get(symbolCode) || assets.get('PLACEHOLDER');
@@ -1114,13 +955,10 @@ export default class GridRenderer {
       }
     }
     
-    // CRITICAL: Don't reset nextSymbIndex - it should continue from where it left off
-    // This matches Unity's behavior where the counter keeps incrementing
-    if (reel.nextSymbIndex === undefined || reel.nextSymbIndex === null) {
-      reel.nextSymbIndex = 0;
-    }
+    // Reset nextSymbIndex to continue from where we left off
+    reel.nextSymbIndex = (reel.currOrderPosition + reel.symbols.length) % reel.symbOrder.length;
     
-    console.log(`[GridRenderer] applyInitialTexturesToVisibleSymbols: Applied textures to all ${reel.symbols.length} symbols for reel ${reel.index} from order length ${reel.symbOrder.length}`);
+    console.log(`[GridRenderer] applyInitialTexturesToVisibleSymbols: Applied textures to all symbols for reel ${reel.index}`);
   }
 
   /**
@@ -1131,10 +969,6 @@ export default class GridRenderer {
    * @returns {number} Angle in degrees to target position
    */
   getAngleToNextSymb(reel, nextOrderPosition) {
-    // If already at target position, return 0 (no rotation needed)
-    if (reel.currOrderPosition === nextOrderPosition) {
-      return 0;
-    }
     if (reel.currOrderPosition < nextOrderPosition) {
       return (nextOrderPosition - reel.currOrderPosition) * reel.anglePerTileDeg;
     }
@@ -1142,170 +976,133 @@ export default class GridRenderer {
   }
 
   /**
-   * Finds where backend symbols appear in the fixed reel strip
+   * Updates symbol order array from backend result
    * 
-   * CRITICAL: We DON'T modify symbOrder - it's fixed like Unity.
-   * Instead, we find where the backend symbols appear in the existing strip
-   * and return that position as the stop position.
+   * Maps backend jagged array result to symbol order array.
+   * The symbol order defines the sequence of symbols on the reel.
    * 
    * @param {Object} reel - Reel object
    * @param {Array<string>} backendSymbols - Symbol codes from backend (jagged array column)
    * @param {PIXI.Assets} assets - Assets API
-   * @returns {number} Position in symbOrder where backend symbols start, or -1 if not found
+   * @returns {void}
    */
-  findBackendSymbolsInStrip(reel, backendSymbols, assets) {
-    if (!reel || !backendSymbols || backendSymbols.length === 0 || !reel.symbOrder || reel.symbOrder.length === 0) {
-      console.error(`[GridRenderer] findBackendSymbolsInStrip: Reel ${reel?.index} - Invalid input`, {
-        hasReel: !!reel,
-        backendSymbolsLength: backendSymbols?.length || 0,
-        symbOrderLength: reel?.symbOrder?.length || 0
-      });
-      return -1;
-    }
-    
-    // CRITICAL: Map backend symbol codes to frontend symbol codes
-    // Backend may send "FACE" but frontend uses "SCATTER", etc.
-    // Use reverse symbol map: if we have FACE -> SCATTER mapping, use it
-    const reverseSymbolMap = {};
-    if (this.symbolMap) {
-      // Create reverse map: frontend code -> backend code
-      // But we need backend code -> frontend code, so invert symbolMap
-      for (const [backendCode, frontendCode] of Object.entries(this.symbolMap)) {
-        reverseSymbolMap[frontendCode] = backendCode; // Not needed, but keep for reference
-      }
-    }
+  updateSymbolOrderFromBackend(reel, backendSymbols, assets) {
+    if (!reel || !backendSymbols || backendSymbols.length === 0) return;
     
     // Get symbol indices from backend symbols
-    // CRITICAL: Backend sends codes like "FACE", "BIRD", etc. which should match availableSymbols
-    // But if backend sends "FACE" and frontend has "SCATTER", we need to map it
     const symbolIndices = [];
-    const symbolCodes = [];
-    for (const backendSymbolCode of backendSymbols) {
-      // First, try direct match (backend might already send frontend codes)
-      let frontendCode = backendSymbolCode;
-      let index = this.availableSymbols.indexOf(frontendCode);
-      
-      // If not found, try to find it in symbolMap values (reverse lookup)
-      if (index < 0 && this.symbolMap) {
-        // Check if backendSymbolCode is a frontend code that exists in symbolMap values
-        const symbolMapValues = Object.values(this.symbolMap);
-        if (symbolMapValues.includes(backendSymbolCode)) {
-          frontendCode = backendSymbolCode;
-          index = this.availableSymbols.indexOf(frontendCode);
-        } else {
-          // Backend might be sending the mapped code directly (e.g., "FACE" from backend config)
-          // Try to find if any symbolMap entry has this as the value
-          for (const [symKey, symValue] of Object.entries(this.symbolMap)) {
-            if (symValue === backendSymbolCode) {
-              frontendCode = symValue;
-              index = this.availableSymbols.indexOf(frontendCode);
-              break;
-            }
-          }
-        }
-      }
-      
-      // If still not found, try special mappings
-      if (index < 0) {
-        // Special case: Backend sends "FACE" but frontend might use "SCATTER"
-        if (backendSymbolCode === 'FACE') {
-          frontendCode = 'SCATTER';
-          index = this.availableSymbols.indexOf('SCATTER');
-          if (index >= 0) {
-            console.log(`[GridRenderer] findBackendSymbolsInStrip: Mapped "FACE" -> "SCATTER"`);
-          }
-        }
-        // Try other common mappings
-        if (index < 0 && backendSymbolCode === 'SCATTER') {
-          frontendCode = 'FACE';
-          index = this.availableSymbols.indexOf('FACE');
-          if (index >= 0) {
-            console.log(`[GridRenderer] findBackendSymbolsInStrip: Mapped "SCATTER" -> "FACE"`);
-          }
-        }
-      }
-      
-      // If still not found, backend symbol doesn't exist in frontend
-      if (index < 0) {
-        console.error(`[GridRenderer] findBackendSymbolsInStrip: Backend symbol "${backendSymbolCode}" not found in availableSymbols. Available:`, this.availableSymbols);
-        // Try to find closest match or use first symbol
-        index = 0; // Fallback to first symbol
-      }
-      
-      symbolIndices.push(index);
-      symbolCodes.push(frontendCode);
-    }
-    
-    console.log(`[GridRenderer] findBackendSymbolsInStrip: Reel ${reel.index} - Searching for backend symbols:`, {
-      backendSymbols: backendSymbols,
-      mappedSymbols: symbolCodes,
-      symbolIndices: symbolIndices,
-      symbOrderLength: reel.symbOrder.length,
-      symbOrderSample: reel.symbOrder.slice(0, 20) // First 20 symbols for debugging
-    });
-    
-    // Search for the sequence of backend symbols in the fixed symbOrder
-    // This is like Unity finding where the backend result appears in the reel strip
-    for (let startPos = 0; startPos < reel.symbOrder.length; startPos++) {
-      let matches = true;
-      for (let i = 0; i < symbolIndices.length; i++) {
-        const orderIndex = (startPos + i) % reel.symbOrder.length;
-        if (reel.symbOrder[orderIndex] !== symbolIndices[i]) {
-          matches = false;
-          break;
-        }
-      }
-      if (matches) {
-        console.log(`[GridRenderer] findBackendSymbolsInStrip: Reel ${reel.index} - ✅ FOUND at position ${startPos} in fixed strip`);
-        return startPos;
+    for (const symbolCode of backendSymbols) {
+      // Find index of symbol in availableSymbols
+      const index = this.availableSymbols.indexOf(symbolCode);
+      if (index >= 0) {
+        symbolIndices.push(index);
+      } else {
+        // Fallback to first symbol if not found
+        symbolIndices.push(0);
       }
     }
     
-    // If not found, backend symbols don't exist in the fixed strip
-    // This means the frontend strips don't match the backend strips!
-    console.error(`[GridRenderer] findBackendSymbolsInStrip: Reel ${reel.index} - ❌ NOT FOUND in fixed strip!`, {
-      backendSymbols: symbolCodes,
-      symbolIndices: symbolIndices,
-      symbOrderLength: reel.symbOrder.length,
-      symbOrderFirst50: reel.symbOrder.slice(0, 50),
-      availableSymbols: this.availableSymbols
-    });
-    return -1;
+    // Update symbol order array
+    // The order should contain the backend symbols plus additional symbols for wrapping
+    // We'll create a longer order array that includes the backend result
+    const orderLength = Math.max(reel.tileCount, symbolIndices.length * 3);
+    reel.symbOrder = [];
+    
+    // Fill order with backend symbols repeated
+    for (let i = 0; i < orderLength; i++) {
+      reel.symbOrder.push(symbolIndices[i % symbolIndices.length]);
+    }
+    
+    // Reset next symbol index
+    reel.nextSymbIndex = 0;
+    
+    console.log(`[GridRenderer] updateSymbolOrderFromBackend: Reel ${reel.index} - Updated order with ${symbolIndices.length} symbols, order length: ${orderLength}`);
   }
 
   /**
-   * Maps backend result to symbol order position (Unity approach)
+   * Maps backend result to symbol order position
    * 
-   * CRITICAL: Backend sends symbols, but we need to find where they appear in the FIXED reel strip.
-   * The fixed strip (symbOrder) never changes - it's like Unity's permanent reel configuration.
-   * We search for the backend symbols in the fixed strip and return that position.
+   * Calculates the target position in the symbol order array that will result
+   * in the backend symbols being visible when the reel stops.
+   * 
+   * The key is to ensure that when the reel stops, the visible symbols
+   * (determined by rotation angle and symbol positions) match the backend result.
    * 
    * @param {Object} reel - Reel object
    * @param {Array<string>} backendSymbols - Symbol codes from backend
    * @param {PIXI.Assets} assets - Assets API
-   * @returns {number} Target position in symbol order array (where backend symbols appear in fixed strip)
+   * @returns {number} Target position in symbol order array
    */
   mapBackendResultToOrderPosition(reel, backendSymbols, assets) {
     if (!reel || !backendSymbols || backendSymbols.length === 0) {
       return 0;
     }
     
+    // Update symbol order first - this sets up the order with backend symbols
+    this.updateSymbolOrderFromBackend(reel, backendSymbols, assets);
+    
     // Store backend symbols for reference
     reel.backendSymbols = [...backendSymbols];
     
-    // CRITICAL: Find where backend symbols appear in the FIXED reel strip
-    // This is like Unity where backend tells us which position in symbOrder to stop at
-    const stopPosition = this.findBackendSymbolsInStrip(reel, backendSymbols, assets);
+    // CRITICAL: Calculate where backend symbols should be positioned
+    // The visible area corresponds to symbols at specific positions in the cylinder
+    // We need to find which position in the order will make backend symbols visible
     
-    if (stopPosition === -1) {
-      // Backend symbols not found in fixed strip - this shouldn't happen
-      // Fallback: return 0 (start of strip)
-      console.error(`[GridRenderer] mapBackendResultToOrderPosition: Reel ${reel.index} - Backend symbols not in fixed strip! Using position 0`);
-      return 0;
+    // The visible area is centered at a specific Y position
+    // When rotationX = 0, symbols at certain angles are visible
+    // We want to rotate so that backend symbols (at positions 0, 1, 2, ... in the order)
+    // end up in the visible area
+    
+    // For a cylindrical reel, the visible symbols are those closest to the center
+    // When rotationX = 0, symbols at indices around tileCount/4 are typically visible
+    // We want backend symbols to be at those positions
+    
+    // Calculate which symbol indices are currently visible (at rotation 0)
+    const visibleRows = backendSymbols.length;
+    const maskStart = this.symbolSize;
+    const visibleCenter = maskStart + (visibleRows * this.symbolSize) / 2;
+    
+    // Find which symbol index is closest to the visible center at rotation 0
+    let closestSymbolIndex = 0;
+    let closestDistance = Infinity;
+    
+    for (let i = 0; i < reel.symbols.length; i++) {
+      const symbol = reel.symbols[i];
+      if (!symbol || symbol.destroyed) continue;
+      
+      // Calculate symbol's Y position at rotation 0
+      const baseAngle = i * reel.anglePerTileRad;
+      const yOffset = -reel.radius * Math.sin(baseAngle);
+      const symbolY = visibleCenter + yOffset;
+      
+      const distance = Math.abs(symbolY - visibleCenter);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestSymbolIndex = i;
+      }
     }
     
-    console.log(`[GridRenderer] mapBackendResultToOrderPosition: Reel ${reel.index} - Backend symbols found at position ${stopPosition} in fixed strip`);
-    return stopPosition;
+    // The backend symbols should be positioned starting at closestSymbolIndex
+    // But since we've set up the order with backend symbols at positions 0, 1, 2, ...
+    // we need to calculate the rotation that will move those symbols to the visible area
+    
+    // Calculate the target order position
+    // We want the first backend symbol (at order position 0) to be at symbol index closestSymbolIndex
+    // The rotation needed is: (closestSymbolIndex - 0) * anglePerTileDeg
+    // But we also need full rotations for visual effect
+    
+    // Actually, simpler approach: since backend symbols are at order positions 0, 1, 2, ...
+    // and we want them visible, we need to rotate so that order position 0 aligns with
+    // the visible center. The target position is 0, but we need to account for current position.
+    
+    // Initialize currOrderPosition if not set
+    if (reel.currOrderPosition === undefined || reel.currOrderPosition === null) {
+      reel.currOrderPosition = 0;
+    }
+    
+    // The target is position 0 (where backend symbols start in the order)
+    // But we need to calculate the angle to get there from current position
+    return 0;
   }
 
   buildReels(assets) {
@@ -1690,31 +1487,68 @@ export default class GridRenderer {
     const spinTime = reel.isFastSpin ? baseSpinTime * 0.6 : baseSpinTime; // Turbo mode is 60% faster
     
     // Calculate target angle (always downward/negative)
-    // CRITICAL: Use Unity's exact approach
-    // Unity: angleX = GetAngleToNextSymb(NextOrderPosition) + anglePerTileDeg * symbOrder.Count * spinSpeedMultiplier
-    // Since backend symbols are at positions 0, 1, 2, ... in symbOrder (after updateSymbolOrderFromBackend)
-    // NextOrderPosition is 0 (where backend symbols start)
-    // CurrOrderPosition is 0 (reset at start)
-    // So GetAngleToNextSymb(0) when curr=0 returns 0
-    // But we still need full rotations for visual effect
+    // CRITICAL: The target angle should ensure backend symbols end up in visible positions
+    // We use a fixed number of rotations for visual effect, and rely on symbol wrapping
+    // to ensure the correct symbols are visible at the end
     let targetAngle = 0;
     if (reel.nextOrderPosition !== -1 && this.resultMatrix && this.resultMatrix[reel.index]) {
-      // Unity approach: GetAngleToNextSymb calculates angle from current to target position
-      const angleToNextSymb = this.getAngleToNextSymb(reel, reel.nextOrderPosition);
-      const fullRotations = reel.anglePerTileDeg * reel.symbOrder.length * spinSpeedMultiplier;
+      // Calculate visible area
+      const visibleRows = this.resultMatrix[reel.index].length;
+      const maskStart = this.symbolSize;
+      const visibleStart = maskStart;
+      const visibleEnd = visibleStart + (visibleRows * this.symbolSize);
+      const visibleCenter = maskStart + (visibleRows * this.symbolSize) / 2;
       
-      // Total angle = angle to next symbol + full rotations
-      // We use negative to spin downward
-      targetAngle = -(angleToNextSymb + fullRotations);
+      // Find which symbol indices are currently in the visible area at rotation 0
+      // These are the positions where backend symbols should appear
+      const visibleSymbolIndices = [];
+      for (let i = 0; i < reel.symbols.length; i++) {
+        const symbol = reel.symbols[i];
+        if (!symbol || symbol.destroyed) continue;
+        
+        const baseAngle = i * reel.anglePerTileRad;
+        const yOffset = -reel.radius * Math.sin(baseAngle);
+        const symbolY = visibleCenter + yOffset;
+        
+        if (symbolY >= visibleStart && symbolY < visibleEnd) {
+          visibleSymbolIndices.push({ index: i, y: symbolY, distance: Math.abs(symbolY - visibleCenter) });
+        }
+      }
       
-      this.debugLogger.log(`Reel ${reel.index}: Target angle calculation (Unity approach)`, {
-        currOrderPosition: reel.currOrderPosition,
-        nextOrderPosition: reel.nextOrderPosition,
-        angleToNextSymb: angleToNextSymb.toFixed(2),
-        fullRotations: fullRotations.toFixed(2),
-        targetAngle: targetAngle.toFixed(2),
-        currentRotationX: reel.rotationX.toFixed(2)
-      });
+      // Sort by distance from center (closest first)
+      visibleSymbolIndices.sort((a, b) => a.distance - b.distance);
+      
+      // Take the first visibleRows symbols (one per row)
+      const targetIndices = visibleSymbolIndices.slice(0, visibleRows).map(v => v.index).sort((a, b) => a - b);
+      
+      // Calculate rotation needed to align backend symbols (from symbOrder positions 0, 1, 2, ...)
+      // with the target visible symbol indices
+      // The first backend symbol (symbOrder[0]) should be at the first visible position
+      if (targetIndices.length > 0) {
+        // We want symbOrder[0] to be at targetIndices[0]
+        // The rotation needed is: (targetIndices[0] - 0) * anglePerTileDeg
+        // But we also need full rotations for visual effect
+        const fullRotations = reel.anglePerTileDeg * reel.symbOrder.length * spinSpeedMultiplier;
+        const angleToAlign = targetIndices[0] * reel.anglePerTileDeg;
+        
+        // Total angle = full rotations + angle to align
+        // We use negative to spin downward
+        targetAngle = -(fullRotations + angleToAlign);
+        
+        this.debugLogger.log(`Reel ${reel.index}: Target angle calculation`, {
+          visibleRows,
+          targetIndices: targetIndices.slice(0, 5), // Log first 5
+          firstTargetIndex: targetIndices[0],
+          angleToAlign: angleToAlign.toFixed(2),
+          fullRotations: fullRotations.toFixed(2),
+          targetAngle: targetAngle.toFixed(2),
+          currentRotationX: reel.rotationX.toFixed(2)
+        });
+      } else {
+        // Fallback: just use full rotations
+        const fullRotations = reel.anglePerTileDeg * reel.symbOrder.length * spinSpeedMultiplier;
+        targetAngle = -fullRotations;
+      }
     } else {
       // Continuous spin - use large negative angle
       targetAngle = -reel.anglePerTileDeg * reel.symbOrder.length * spinSpeedMultiplier;
@@ -1743,16 +1577,12 @@ export default class GridRenderer {
         // Wrap symbols during spin (uses backend symbols from resultMatrix)
         this.wrapSymbolTape(reel, delta, this.currentAssets);
         
-        // CRITICAL: DO NOT apply backend symbols during spin - they should already be correct
-        // from applyInitialTexturesToVisibleSymbols, and wrapping will maintain them
-        
         // Log every 10th update to avoid spam
         if (updateCount % 10 === 0) {
-          const currentProgress = Math.abs((reel.rotationX - (reel.rotationX - targetAngle)) / targetAngle);
           this.debugLogger.log(`Reel ${reel.index}: Spin update`, {
             rotationX: reel.rotationX.toFixed(2),
             delta: delta.toFixed(2),
-            progress: (currentProgress * 100).toFixed(1) + '%'
+            progress: ((reel.rotationX - (reel.rotationX - targetAngle)) / targetAngle * 100).toFixed(1) + '%'
           });
         }
         updateCount++;
@@ -1765,27 +1595,19 @@ export default class GridRenderer {
         });
         
         // Final wrap to ensure all symbols are correct
-        // Final wrap to ensure all symbols are correct
         // CRITICAL: Do one final wrap with the full target angle to ensure all visible symbols are correct
-        // Backend symbols should already be correct from wrapping during the spin
         this.wrapSymbolTape(reel, targetAngle, this.currentAssets);
-        
-        // CRITICAL: Set CurrOrderPosition to NextOrderPosition (Unity line 324)
-        // This ensures the reel knows it's at the target position
         reel.currOrderPosition = reel.nextOrderPosition !== -1 ? reel.nextOrderPosition : reel.currOrderPosition;
-        
         reel.topSector = ((reel.topSector + Math.abs(Math.round(targetAngle / reel.anglePerTileDeg))) % reel.tileCount + reel.tileCount) % reel.tileCount;
         reel.tempSectors = 0;
         
-        // CRITICAL: DO NOT apply backend symbols here - they should already be correct
-        // from wrapping during the spin. Any texture change here causes visible rerendering.
-        // The wrapping uses the fixed symbOrder strip, which contains backend symbols at NextOrderPosition
+        // CRITICAL: DO NOT apply backend symbols after spin - this causes jumping!
+        // The symbols should already be correct from wrapping during the spin
+        // Only verify they're correct, don't change them
         
         this.debugLogger.log(`Reel ${reel.index}: After final wrap`, {
           visibleSymbols: this.debugLogger.getVisibleSymbols(reel, this.resultMatrix),
-          expectedSymbols: this.resultMatrix && this.resultMatrix[reel.index] ? this.resultMatrix[reel.index] : null,
-          currOrderPosition: reel.currOrderPosition,
-          nextOrderPosition: reel.nextOrderPosition
+          expectedSymbols: this.resultMatrix && this.resultMatrix[reel.index] ? this.resultMatrix[reel.index] : null
         });
         
         if (onComplete) onComplete();
@@ -2054,20 +1876,20 @@ export default class GridRenderer {
       reel.previousRotationX = 0;
       reel.tempSectors = 0;
       reel.currOrderPosition = 0; // Reset current order position
-      reel.backendSymbolsApplied = false; // Reset flag so symbols can be applied during spin
       
-      // CRITICAL: Find stop position in FIXED reel strip (like Unity)
-      // Backend sends symbols, we find where they appear in the fixed symbOrder strip
-      // DO NOT modify symbOrder - it's fixed like Unity's permanent reel configuration
+      // CRITICAL: Update symbol order with backend symbols BEFORE starting spin
+      // This ensures backend symbols are used during wrapping
       let nextOrderPosition = -1; // -1 = continuous rotation
       if (this.resultMatrix && this.resultMatrix[i] && this.resultMatrix[i].length > 0) {
-        // Map backend symbols to position in fixed reel strip
+        // Update symbol order array with backend symbols
+        this.updateSymbolOrderFromBackend(reel, this.resultMatrix[i], assets);
+        // Map backend jagged array to symbol order position
         nextOrderPosition = this.mapBackendResultToOrderPosition(reel, this.resultMatrix[i], assets);
         
         this.debugLogger.log(`Reel ${i}: Spin starting`, {
           backendSymbols: this.resultMatrix[i],
           targetOrderPosition: nextOrderPosition,
-          symbolOrderLength: reel.symbOrder ? reel.symbOrder.length : 0,
+          symbolOrderLength: reel.symbOrder.length,
           currentRotationX: reel.rotationX,
           currOrderPosition: reel.currOrderPosition,
           initialVisibleSymbols: this.debugLogger.getVisibleSymbols(reel, this.resultMatrix)
@@ -2079,10 +1901,15 @@ export default class GridRenderer {
       // Set fast spin mode if turbo
       reel.isFastSpin = this.isTurboMode;
       
-      // CRITICAL: Apply initial textures to visible symbols BEFORE spin starts
-      // This ensures correct symbols are visible from the start
-      // Unity does this by setting up symbols with textures from symbOrder initially
-      this.applyInitialTexturesToVisibleSymbols(reel, assets);
+      // Update symbol order from backend result if available
+      if (this.resultMatrix && this.resultMatrix[i]) {
+        this.updateSymbolOrderFromBackend(reel, this.resultMatrix[i], assets);
+        
+        // CRITICAL: Apply initial textures to visible symbols BEFORE spin starts
+        // This ensures correct symbols are visible from the start, not random ones
+        // Unity does this by setting up symbols with textures from symbOrder initially
+        this.applyInitialTexturesToVisibleSymbols(reel, assets);
+      }
       
       // Callback for when reel completes
       const onReelComplete = () => {

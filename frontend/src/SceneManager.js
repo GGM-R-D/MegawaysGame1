@@ -205,6 +205,18 @@ export default class SceneManager {
     });
     this.gridRenderer.initialize(this.sceneLayer);
     this.gridRenderer.setAvailableSymbols(this.availableSymbols);
+    
+    // CRITICAL: Load backend reel strips BEFORE building reels
+    // This ensures the frontend uses the same strips as the backend
+    // The strips will be used when createSlotCylinder is called in buildReels
+    const gameId = themeManifest.gameId || 'JungleRelics';
+    try {
+      await this.gridRenderer.loadReelStrips(gameId);
+      console.log('[SceneManager] initialize: Backend reel strips loaded successfully');
+    } catch (error) {
+      console.warn('[SceneManager] initialize: Failed to load backend reel strips, will use random strips', error);
+    }
+    
     // Set default reel heights for initial display (will be updated on first spin)
     // For Megaways, use default heights matching the original 6x5 grid initially
     const defaultHeights = Array(this.columns).fill(this.rows);
@@ -384,17 +396,17 @@ export default class SceneManager {
 
         /**
          * Shows final grid after spin completes
-         * Called either immediately (if spin already stopped) or as callback when spin completes
-         * Note: Textures are already applied by preloadSpinResult above, so transition is smooth
+         * CRITICAL: Do NOT transition to grid layer - keep spin layer visible
+         * The spin layer already has the correct symbols from wrapping
+         * Only transition to grid layer when cascades start (which needs grid layer for animations)
          */
         const showFinalGrid = async () => {
           this.audioManager.playStop(); // Play reel stop sound
-          // Transition from spinning reels to static grid
-          // Textures are already applied, so this is just a layer switch
-          await this.gridRenderer.transitionSpinToGrid(finalReelSymbols, this.assets);
-          if (this.topReelRenderer && topReelSymbols && topReelSymbols.length > 0) {
-            await this.topReelRenderer.transitionSpinToGrid(topReelSymbols, this.assets);
-          }
+          
+          // CRITICAL: DO NOT transition to grid layer here!
+          // The spin layer already has the correct backend symbols
+          // Transitioning causes visible jumps/reloads
+          // We keep the spin layer visible until cascades start
           
           // Play win sound if there's a win
           if (playResponse && playResponse.win) {
