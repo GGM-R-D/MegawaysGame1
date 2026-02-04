@@ -14,7 +14,10 @@ public sealed record PlayRequest(
     bool IsFeatureBuy,
     EngineSessionState EngineState,
     JsonElement? UserPayload,
-    JsonElement? LastResponse);
+    JsonElement? LastResponse,
+    int? RtpLevel = null,
+    int? Mode = null,
+    JsonElement? Currency = null);
 
 public sealed record BetRequest(string BetType, Money Amount);
 

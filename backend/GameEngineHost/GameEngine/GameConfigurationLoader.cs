@@ -276,7 +276,8 @@ namespace GameEngine.Configuration
         Low,
         High,
         Scatter,
-        Multiplier
+        Multiplier,
+        Wild
     }
 
     public sealed class BetLedger

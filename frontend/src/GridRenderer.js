@@ -1030,8 +1030,29 @@ export default class GridRenderer {
       
       if (!symbolCode || !symbolData) continue;
       
-      const texture = assets.get(symbolCode) || assets.get('PLACEHOLDER');
-      if (!texture) continue;
+      // Ensure symbolCode is a string and matches availableSymbols
+      const normalizedCode = String(symbolCode).trim();
+      let finalCode = normalizedCode;
+      
+      // Check if the code exists in availableSymbols
+      if (!this.availableSymbols.includes(normalizedCode)) {
+        console.warn(`[GridRenderer] alignVisibleSymbolsWithBackend: Symbol code "${normalizedCode}" not in availableSymbols. Available:`, this.availableSymbols);
+        // Try to find it (case-insensitive)
+        const found = this.availableSymbols.find(s => s.toUpperCase() === normalizedCode.toUpperCase());
+        if (found) {
+          finalCode = found;
+          console.log(`[GridRenderer] alignVisibleSymbolsWithBackend: Found case-insensitive match: "${normalizedCode}" -> "${found}"`);
+        } else {
+          finalCode = 'PLACEHOLDER';
+          console.error(`[GridRenderer] alignVisibleSymbolsWithBackend: Using PLACEHOLDER for unknown symbol "${normalizedCode}"`);
+        }
+      }
+      
+      const texture = assets.get(finalCode) || assets.get('PLACEHOLDER');
+      if (!texture) {
+        console.error(`[GridRenderer] alignVisibleSymbolsWithBackend: No texture found for symbol "${finalCode}"`);
+        continue;
+      }
       
       const symbol = symbolData.symbol;
       
@@ -1049,7 +1070,8 @@ export default class GridRenderer {
       
       if (currentSymbolCode !== symbolCode) {
         symbol.texture = texture;
-        const symbolIndex = this.availableSymbols.indexOf(symbolCode);
+        symbol.symbolCode = finalCode; // Store the actual symbol code used
+        const symbolIndex = this.availableSymbols.indexOf(finalCode);
         if (symbolIndex >= 0) {
           symbol.iconID = symbolIndex;
         }
@@ -1061,7 +1083,7 @@ export default class GridRenderer {
         symbol.scale.set(scale);
         symbol.x = (this.reelWidth - symbol.width) / 2;
         
-        console.log(`[GridRenderer] alignVisibleSymbolsWithBackend: Reel ${reel.index}, Row ${row}: Updated ${currentSymbolCode || 'UNKNOWN'} → ${symbolCode}`);
+        console.log(`[GridRenderer] alignVisibleSymbolsWithBackend: Reel ${reel.index}, Row ${row}: Updated ${currentSymbolCode || 'UNKNOWN'} → ${finalCode} (backend sent: ${symbolCode})`);
       }
     }
     
@@ -1164,7 +1186,7 @@ export default class GridRenderer {
     }
     
     // CRITICAL: Map backend symbol codes to frontend symbol codes
-    // Backend may send "FACE" but frontend uses "SCATTER", etc.
+    // Backend sends symbol codes like "BONUS", "BUFFALO", etc.
     // Use reverse symbol map: if we have FACE -> SCATTER mapping, use it
     const reverseSymbolMap = {};
     if (this.symbolMap) {
@@ -1176,8 +1198,7 @@ export default class GridRenderer {
     }
     
     // Get symbol indices from backend symbols
-    // CRITICAL: Backend sends codes like "FACE", "BIRD", etc. which should match availableSymbols
-    // But if backend sends "FACE" and frontend has "SCATTER", we need to map it
+      // CRITICAL: Backend sends codes like "BONUS", "BUFFALO", etc. which should match availableSymbols
     const symbolIndices = [];
     const symbolCodes = [];
     for (const backendSymbolCode of backendSymbols) {
@@ -1193,7 +1214,7 @@ export default class GridRenderer {
           frontendCode = backendSymbolCode;
           index = this.availableSymbols.indexOf(frontendCode);
         } else {
-          // Backend might be sending the mapped code directly (e.g., "FACE" from backend config)
+          // Backend sends symbol codes directly (e.g., "BONUS" from backend config)
           // Try to find if any symbolMap entry has this as the value
           for (const [symKey, symValue] of Object.entries(this.symbolMap)) {
             if (symValue === backendSymbolCode) {
@@ -1207,20 +1228,12 @@ export default class GridRenderer {
       
       // If still not found, try special mappings
       if (index < 0) {
-        // Special case: Backend sends "FACE" but frontend might use "SCATTER"
-        if (backendSymbolCode === 'FACE') {
-          frontendCode = 'SCATTER';
-          index = this.availableSymbols.indexOf('SCATTER');
+        // Special case: Backend sends "BONUS" (scatter symbol)
+        if (backendSymbolCode === 'BONUS') {
+          frontendCode = 'BONUS';
+          index = this.availableSymbols.indexOf('BONUS');
           if (index >= 0) {
-            console.log(`[GridRenderer] findBackendSymbolsInStrip: Mapped "FACE" -> "SCATTER"`);
-          }
-        }
-        // Try other common mappings
-        if (index < 0 && backendSymbolCode === 'SCATTER') {
-          frontendCode = 'FACE';
-          index = this.availableSymbols.indexOf('FACE');
-          if (index >= 0) {
-            console.log(`[GridRenderer] findBackendSymbolsInStrip: Mapped "SCATTER" -> "FACE"`);
+            console.log(`[GridRenderer] findBackendSymbolsInStrip: Found "BONUS" symbol`);
           }
         }
       }
@@ -1228,8 +1241,12 @@ export default class GridRenderer {
       // If still not found, backend symbol doesn't exist in frontend
       if (index < 0) {
         console.error(`[GridRenderer] findBackendSymbolsInStrip: Backend symbol "${backendSymbolCode}" not found in availableSymbols. Available:`, this.availableSymbols);
-        // Try to find closest match or use first symbol
-        index = 0; // Fallback to first symbol
+        console.error(`[GridRenderer] findBackendSymbolsInStrip: Symbol map:`, this.symbolMap);
+        // Try to use PLACEHOLDER instead of first symbol to avoid showing wrong symbols
+        const placeholderIndex = this.availableSymbols.indexOf('PLACEHOLDER');
+        index = placeholderIndex >= 0 ? placeholderIndex : 0;
+        frontendCode = this.availableSymbols[index] || 'PLACEHOLDER';
+        console.warn(`[GridRenderer] findBackendSymbolsInStrip: Using fallback symbol "${frontendCode}" for backend code "${backendSymbolCode}"`);
       }
       
       symbolIndices.push(index);
@@ -2465,6 +2482,7 @@ export default class GridRenderer {
 
   setAvailableSymbols(symbols) {
     this.availableSymbols = symbols;
+    console.log('[GridRenderer] setAvailableSymbols: Available symbols set to:', this.availableSymbols);
   }
 
   renderSymbols(symbolMatrix, assets) {

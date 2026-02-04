@@ -8,8 +8,8 @@
  * 
  * API Endpoints:
  * - POST /{operatorId}/{gameId}/start - Start new game session
- * - POST /{gameId}/play - Execute a spin
- * - POST /{gameId}/buy-free-spins - Purchase free spins feature
+ * - POST /{operatorId}/{gameId}/play - Execute a spin
+ * - POST /{operatorId}/{gameId}/buy-free-spins - Purchase free spins feature
  */
 
 const DEFAULT_BASE_URL = 'http://localhost:5100';
@@ -42,7 +42,8 @@ export default class NetworkManager {
    * @param {string} gameId - Game identifier (e.g., 'JungleRelics')
    * @param {Object} [payload] - Additional session parameters
    * @param {string} [payload.lang] - Language code (e.g., 'en')
-   * @param {number} [payload.funMode] - Fun mode flag (1 = demo mode)
+   * @param {number} [payload.funMode] - Fun mode flag (0 = real money, 1 = demo mode)
+   * @param {string} [payload.playerToken] - Player token (required when funMode=0)
    * @returns {Promise<Object>} Session information (sessionId, gameId, balance, etc.)
    * @throws {Error} If request fails or response is invalid
    */
@@ -60,7 +61,21 @@ export default class NetworkManager {
       body: JSON.stringify(payload ?? {})
     });
 
-    return this.#handleResponse(response);
+    const data = await this.#handleResponse(response);
+    
+    // Transform RGS response to match frontend expectations
+    // RGS returns: { player: { sessionId, id, balance }, game: {...}, ... }
+    // Frontend expects: { sessionId, gameId, balance, ... }
+    return {
+      sessionId: data.player?.sessionId,
+      gameId: gameId, // Use the gameId from the request
+      balance: data.player?.balance,
+      initialBalance: data.player?.balance,
+      playerId: data.player?.id,
+      operatorId: operatorId,
+      // Include full response for any other fields needed
+      ...data
+    };
   }
 
   /**
@@ -68,6 +83,7 @@ export default class NetworkManager {
    * 
    * Executes a game spin and returns results including cascades, wins, balance, etc.
    * 
+   * @param {string} operatorId - Operator identifier
    * @param {string} gameId - Game identifier
    * @param {Object} requestBody - Spin request payload
    * @param {string} requestBody.sessionId - Current session ID
@@ -78,12 +94,12 @@ export default class NetworkManager {
    * @returns {Promise<Object>} Play response (results, win, balance, cascades, etc.)
    * @throws {Error} If request fails or response is invalid
    */
-  async play(gameId, requestBody) {
-    if (!gameId) {
-      throw new Error('gameId is required for /play.');
+  async play(operatorId, gameId, requestBody) {
+    if (!operatorId || !gameId) {
+      throw new Error('operatorId and gameId are required for /play.');
     }
 
-    const url = `${this.baseUrl}/${encodeURIComponent(gameId)}/play`;
+    const url = `${this.baseUrl}/${encodeURIComponent(operatorId)}/${encodeURIComponent(gameId)}/play`;
     const response = await this.fetch(url, {
       method: 'POST',
       headers: {
@@ -92,7 +108,22 @@ export default class NetworkManager {
       body: JSON.stringify(requestBody)
     });
 
-    return this.#handleResponse(response);
+    const data = await this.#handleResponse(response);
+    
+    // Transform RGS response to match frontend expectations
+    // RGS returns: { player: { sessionId, roundId, balance, win, bet }, game: { results }, ... }
+    // Frontend expects: { results, win, balance, ... }
+    return {
+      results: data.game?.results,
+      win: data.player?.win ?? 0,
+      balance: data.player?.balance,
+      balanceAfter: data.player?.balance,
+      roundId: data.player?.roundId,
+      freeSpins: data.freeSpins,
+      feature: data.feature,
+      // Include full response for any other fields needed
+      ...data
+    };
   }
 
   /**
@@ -100,6 +131,7 @@ export default class NetworkManager {
    * 
    * Buys free spins directly (costs 100x base bet). Only available in 'standard' mode.
    * 
+   * @param {string} operatorId - Operator identifier
    * @param {string} gameId - Game identifier
    * @param {Object} requestBody - Buy request payload
    * @param {string} requestBody.sessionId - Current session ID
@@ -108,12 +140,12 @@ export default class NetworkManager {
    * @returns {Promise<Object>} Play response (same format as play(), includes freeSpinsAwarded)
    * @throws {Error} If request fails or response is invalid
    */
-  async buyFreeSpins(gameId, requestBody) {
-    if (!gameId) {
-      throw new Error('gameId is required for /buy-free-spins.');
+  async buyFreeSpins(operatorId, gameId, requestBody) {
+    if (!operatorId || !gameId) {
+      throw new Error('operatorId and gameId are required for /buy-free-spins.');
     }
 
-    const url = `${this.baseUrl}/${encodeURIComponent(gameId)}/buy-free-spins`;
+    const url = `${this.baseUrl}/${encodeURIComponent(operatorId)}/${encodeURIComponent(gameId)}/buy-free-spins`;
     const response = await this.fetch(url, {
       method: 'POST',
       headers: {
@@ -122,18 +154,32 @@ export default class NetworkManager {
       body: JSON.stringify(requestBody)
     });
 
-    return this.#handleResponse(response);
+    const data = await this.#handleResponse(response);
+    
+    // Transform RGS response to match frontend expectations (same as play)
+    return {
+      results: data.game?.results,
+      win: data.player?.win ?? 0,
+      balance: data.player?.balance,
+      balanceAfter: data.player?.balance,
+      roundId: data.player?.roundId,
+      freeSpins: data.freeSpins,
+      feature: data.feature,
+      // Include full response for any other fields needed
+      ...data
+    };
   }
 
   /**
    * Handles HTTP response and converts to JSON
    * 
    * Checks response status and parses JSON body.
+   * Extracts data from RGS API response wrapper.
    * Throws error if response is not OK.
    * 
    * @private
    * @param {Response} response - Fetch Response object
-   * @returns {Promise<Object>} Parsed JSON response
+   * @returns {Promise<Object>} Parsed JSON response (extracted from data field)
    * @throws {Error} If response is not OK or JSON is invalid
    */
   async #handleResponse(response) {
@@ -145,6 +191,12 @@ export default class NetworkManager {
     const payload = await response.json();
     if (!payload || typeof payload !== 'object') {
       throw new Error('Unexpected response shape.');
+    }
+
+    // RGS API returns { statusCode, message, data }
+    // Extract the data field, or return payload if it's already flat
+    if (payload.data !== undefined) {
+      return payload.data;
     }
     return payload;
   }

@@ -152,7 +152,21 @@ public sealed class SpinHandler
             var cascadeFinalWin = cascadeBaseWin;
             decimal appliedMultiplier = 1m;
 
+            // Collect multipliers from MULTIPLIER symbols (existing behavior)
             var multiplierSum = board.SumMultipliers();
+            
+            // Collect Wild multipliers from winning symbols (Buffalo King Megaways)
+            decimal tumbleWildMultiplier = 1m;
+            if (spinMode == SpinMode.FreeSpins && nextState.FreeSpins is not null)
+            {
+                var wildMultipliers = CollectWildMultipliersFromWinningSymbols(board, evaluation.SymbolWins, configuration);
+                if (wildMultipliers.Count > 0)
+                {
+                    // Multiply all Wild multipliers together for this tumble
+                    tumbleWildMultiplier = wildMultipliers.Aggregate(1m, (acc, val) => acc * val);
+                }
+            }
+
             if (spinMode == SpinMode.BaseGame || spinMode == SpinMode.BuyEntry)
             {
                 if (multiplierSum > 0m && cascadeBaseWin.Amount > 0)
@@ -163,11 +177,19 @@ public sealed class SpinHandler
             }
             else if (nextState.FreeSpins is not null)
             {
+                // Add MULTIPLIER symbol values to total (existing behavior)
                 if (multiplierSum > 0m)
                 {
                     nextState.FreeSpins.TotalMultiplier += multiplierSum;
                 }
+                
+                // Add tumble Wild multiplier to total (Buffalo King Megaways)
+                if (tumbleWildMultiplier > 1m)
+                {
+                    nextState.FreeSpins.TotalMultiplier += tumbleWildMultiplier;
+                }
 
+                // Apply total multiplier (includes both MULTIPLIER symbols and Wild multipliers)
                 if (nextState.FreeSpins.TotalMultiplier > 0m && cascadeBaseWin.Amount > 0)
                 {
                     appliedMultiplier = nextState.FreeSpins.TotalMultiplier;
@@ -219,7 +241,7 @@ public sealed class SpinHandler
 
             if ((spinMode == SpinMode.BaseGame || spinMode == SpinMode.BuyEntry) && scatterOutcome.FreeSpinsAwarded > 0)
             {
-                InitializeFreeSpins(configuration, nextState);
+                InitializeFreeSpins(configuration, nextState, scatterOutcome.FreeSpinsAwarded);
                 spinMode = SpinMode.FreeSpins;
                 freeSpinsAwarded = scatterOutcome.FreeSpinsAwarded;
             }
@@ -249,6 +271,12 @@ public sealed class SpinHandler
         if (totalWin.Amount > maxWin.Amount)
         {
             totalWin = maxWin;
+            // Buffalo King Megaways: If max win is reached during free spins, end the round immediately
+            if (spinMode == SpinMode.FreeSpins && nextState.FreeSpins is not null)
+            {
+                nextState.FreeSpins.SpinsRemaining = 0;
+                nextState.FreeSpins = null;
+            }
         }
 
         var featureSummary = nextState.FreeSpins is null
@@ -704,29 +732,84 @@ public sealed class SpinHandler
         FreeSpinState? freeSpinState,
         RandomContext randomContext)
     {
-        if (definition.Type != SymbolType.Multiplier)
+        // Handle MULTIPLIER symbols (existing behavior)
+        if (definition.Type == SymbolType.Multiplier)
         {
-            return 0m;
+            IReadOnlyList<MultiplierWeight> profile = configuration.MultiplierProfiles.Standard;
+
+            if (spinMode == SpinMode.FreeSpins && freeSpinState is not null)
+            {
+                profile = freeSpinState.TotalMultiplier >= configuration.MultiplierProfiles.FreeSpinsSwitchThreshold
+                    ? configuration.MultiplierProfiles.FreeSpinsLow
+                    : configuration.MultiplierProfiles.FreeSpinsHigh;
+            }
+            else if (betMode == BetMode.Ante)
+            {
+                profile = configuration.MultiplierProfiles.Ante;
+            }
+
+            var seed = randomContext.TryDequeueMultiplierSeed(out var rngSeed)
+                ? rngSeed
+                : _fortunaPrng.NextInt32(0, int.MaxValue);
+
+            return RollMultiplier(profile, seed);
+        }
+        
+        // Handle WILD symbols during free spins (Buffalo King Megaways)
+        if (definition.Type == SymbolType.Wild && spinMode == SpinMode.FreeSpins)
+        {
+            // Wild multipliers during free spins: 2x, 3x, or 5x
+            // Use equal weights for simplicity (can be adjusted)
+            var wildMultiplierValues = new[] { 2m, 3m, 5m };
+            var seed = randomContext.TryDequeueMultiplierSeed(out var rngSeed)
+                ? rngSeed
+                : _fortunaPrng.NextInt32(0, int.MaxValue);
+            var index = Math.Abs(seed) % wildMultiplierValues.Length;
+            return wildMultiplierValues[index];
         }
 
-        IReadOnlyList<MultiplierWeight> profile = configuration.MultiplierProfiles.Standard;
+        return 0m;
+    }
 
-        if (spinMode == SpinMode.FreeSpins && freeSpinState is not null)
+    private List<decimal> CollectWildMultipliersFromWinningSymbols(
+        ReelBoardBase board,
+        IReadOnlyList<SymbolWin> symbolWins,
+        GameConfiguration configuration)
+    {
+        var wildMultipliers = new List<decimal>();
+        
+        // Get all winning symbol codes (excluding Scatter, as Wilds can't substitute for Scatter)
+        var winningCodes = symbolWins
+            .Where(w => configuration.SymbolMap.TryGetValue(w.SymbolCode, out var def) && def.Type != SymbolType.Scatter)
+            .Select(w => w.SymbolCode)
+            .ToHashSet(StringComparer.Ordinal);
+        
+        // If no winning symbols (or only Scatter wins), no Wild multipliers to collect
+        if (winningCodes.Count == 0)
         {
-            profile = freeSpinState.TotalMultiplier >= configuration.MultiplierProfiles.FreeSpinsSwitchThreshold
-                ? configuration.MultiplierProfiles.FreeSpinsLow
-                : configuration.MultiplierProfiles.FreeSpinsHigh;
+            return wildMultipliers;
         }
-        else if (betMode == BetMode.Ante)
+        
+        // Collect Wild multipliers from reels 2-5 (indices 1-4) that could have substituted for winning symbols
+        for (int reelIndex = 0; reelIndex < board.Columns.Count; reelIndex++)
         {
-            profile = configuration.MultiplierProfiles.Ante;
+            // Wilds only appear on reels 2-5 (indices 1-4)
+            if (reelIndex >= 1 && reelIndex <= 4)
+            {
+                var column = board.Columns[reelIndex];
+                foreach (var symbolInstance in column.Symbols)
+                {
+                    // Check if this is a Wild symbol with a multiplier
+                    if (symbolInstance.Definition.Type == SymbolType.Wild && symbolInstance.MultiplierValue > 0m)
+                    {
+                        // This Wild could have substituted for any of the winning symbols
+                        wildMultipliers.Add(symbolInstance.MultiplierValue);
+                    }
+                }
+            }
         }
-
-        var seed = randomContext.TryDequeueMultiplierSeed(out var rngSeed)
-            ? rngSeed
-            : _fortunaPrng.NextInt32(0, int.MaxValue);
-
-        return RollMultiplier(profile, seed);
+        
+        return wildMultipliers;
     }
 
     private decimal RollMultiplier(IReadOnlyList<MultiplierWeight> weights, int seed)
@@ -773,12 +856,12 @@ public sealed class SpinHandler
         return new ScatterOutcome(scatterCount, win, reward.FreeSpinsAwarded);
     }
 
-    private static void InitializeFreeSpins(GameConfiguration configuration, EngineSessionState state)
+    private static void InitializeFreeSpins(GameConfiguration configuration, EngineSessionState state, int freeSpinsAwarded)
     {
         state.FreeSpins = new FreeSpinState
         {
-            SpinsRemaining = configuration.FreeSpins.InitialSpins,
-            TotalSpinsAwarded = configuration.FreeSpins.InitialSpins,
+            SpinsRemaining = freeSpinsAwarded,
+            TotalSpinsAwarded = freeSpinsAwarded,
             TotalMultiplier = 0,
             FeatureWin = Money.Zero,
             JustTriggered = true

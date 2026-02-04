@@ -95,14 +95,13 @@ public sealed class WinEvaluator
         
         // Build symbol map for quick lookup
         var symbolMap = configuration.SymbolMap;
-        // TODO: Add explicit Wild symbol type support when available
-        // For now, no Wild symbols are defined in the configuration
 
         foreach (var entry in configuration.Paytable)
         {
             var targetSymbol = entry.SymbolCode;
             
             // Check if symbol appears on Reel 0 (leftmost) - REQUIRED for win
+            // Wilds don't appear on reel 0 (reel 1), so the target symbol must appear directly
             if (reelSymbols[0].Count == 0 || !reelSymbols[0].Contains(targetSymbol))
             {
                 continue; // Must start from Reel 0
@@ -128,13 +127,22 @@ public sealed class WinEvaluator
                     bool isMatch = symbol == targetSymbol;
                     bool isWild = false;
                     
-                    // Wilds on reels 2-5 (indices 2, 3, 4, 5) substitute for any symbol
-                    if (reelIndex >= 2 && reelIndex <= 5)
+                    // Wilds on reels 2-5 (indices 1-4, which are reels 2-5) substitute for any symbol except Scatter
+                    if (reelIndex >= 1 && reelIndex <= 4)
                     {
-                        // For now, we'll check if symbol is in wildSymbolCodes
-                        // In a real implementation, you'd check symbolMap[symbol].Type == SymbolType.Wild
-                        // For now, we'll skip wild logic since no Wild type exists
-                        // isWild = symbolMap.ContainsKey(symbol) && symbolMap[symbol].Type == SymbolType.Wild;
+                        // Check if symbol is a Wild type (wilds substitute for all except Scatter)
+                        if (symbolMap.ContainsKey(symbol))
+                        {
+                            var symbolDef = symbolMap[symbol];
+                            if (symbolDef.Type == SymbolType.Wild)
+                            {
+                                // Wilds substitute for all symbols except Scatter
+                                if (symbolMap.ContainsKey(targetSymbol) && symbolMap[targetSymbol].Type != SymbolType.Scatter)
+                                {
+                                    isWild = true;
+                                }
+                            }
+                        }
                     }
                     
                     if (isMatch || isWild)
@@ -172,11 +180,21 @@ public sealed class WinEvaluator
                         bool topMatch = topSym == targetSymbol;
                         bool topWild = false;
                         
-                        // Wilds on top reel (reels 2-5) substitute for any symbol
-                        if (reelIndex >= 2 && reelIndex <= 5)
+                        // Wilds on top reel (reels 2-5, indices 1-4) substitute for any symbol except Scatter
+                        if (reelIndex >= 1 && reelIndex <= 4)
                         {
-                            // TODO: Add wild check when Wild type is available
-                            // topWild = symbolMap.ContainsKey(topSym) && symbolMap[topSym].Type == SymbolType.Wild;
+                            if (symbolMap.ContainsKey(topSym))
+                            {
+                                var symbolDef = symbolMap[topSym];
+                                if (symbolDef.Type == SymbolType.Wild)
+                                {
+                                    // Wilds substitute for all symbols except Scatter
+                                    if (symbolMap.ContainsKey(targetSymbol) && symbolMap[targetSymbol].Type != SymbolType.Scatter)
+                                    {
+                                        topWild = true;
+                                    }
+                                }
+                            }
                         }
                         
                         if (topMatch || topWild)
@@ -203,10 +221,8 @@ public sealed class WinEvaluator
             }
             
             // CRITICAL: Ways to Win (Buffalo King Megaways style)
-            // Minimum requirements:
-            // - BIRD (main symbol): at least 2 contiguous reels
-            // - All other symbols: at least 3 contiguous reels
-            var minContiguousReels = targetSymbol == "BIRD" ? 2 : 3;
+            // Minimum requirements: All symbols require at least 2 contiguous reels (left to right adjacent)
+            var minContiguousReels = 2;
             if (contiguousReels < minContiguousReels)
             {
                 continue;

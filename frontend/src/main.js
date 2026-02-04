@@ -347,12 +347,17 @@ async function main() {
     
     // Step 1: Start game session with backend (RGS service)
     // This creates a new session and returns session info (sessionId, gameId, balance, etc.)
-    const startResponse = await network.startSession('operatorX', 'JungleRelics', {
+    const operatorId = 'operatorX';
+    // For real money mode (funMode=0), playerToken is required
+    // For development/testing, use a test token
+    const playerToken = 'test-player-token-12345';
+    const startResponse = await network.startSession(operatorId, 'JungleRelics', {
       lang: 'en',
-      funMode: 1 // Fun mode (demo mode, no real money)
+      funMode: 0, // Real money mode
+      playerToken: playerToken
     });
 
-    sessionInfo = startResponse; // Store session info for subsequent API calls
+    sessionInfo = { ...startResponse, operatorId }; // Store session info including operatorId for subsequent API calls
     console.log('Session started, gameId:', startResponse.gameId);
     
     // Step 2: Load theme assets (symbols, textures, animations)
@@ -378,62 +383,22 @@ async function main() {
       baseUrl: network.baseUrl
     });
     
-    // Fallback: Try to initialize with demo mode (no backend connection)
-    // This allows the game to load visually even if backend is down
-    try {
-      console.log('Attempting to initialize in demo mode...');
-      
-      // Create a mock sessionInfo for demo mode
-      // Game will load but spins won't work without backend
-      sessionInfo = {
-        sessionId: 'demo-session',
-        gameId: 'JungleRelics',
-        balance: 1000,
-        initialBalance: 1000
-      };
-      
-      // Still load theme and initialize scene (visual only)
-      const demoThemeManifest = await themeManager.loadTheme('JungleRelics', PIXI.Assets);
-      await sceneManager.initialize(demoThemeManifest);
-      
-      // Show warning that backend is not connected
-      const warningDiv = document.createElement('div');
-      warningDiv.style.cssText = 'position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(255, 0, 0, 0.8); color: white; padding: 15px 20px; border-radius: 8px; z-index: 10000; text-align: center; max-width: 600px;';
-      warningDiv.innerHTML = `
-        <strong>⚠️ Backend Not Connected</strong><br>
-        <small>Game is running in demo mode. Backend service at ${network.baseUrl} is not available.</small><br>
-        <small>Please start the backend services (RGS on port 5100) to enable gameplay.</small>
-      `;
-      document.body.appendChild(warningDiv);
-      
-      // Remove warning after 10 seconds
-      setTimeout(() => {
-        if (warningDiv.parentNode) {
-          warningDiv.parentNode.removeChild(warningDiv);
-        }
-      }, 10000);
-      
-      console.log('Game initialized in demo mode (backend not available)');
-    } catch (demoError) {
-      console.error('Failed to initialize even in demo mode:', demoError);
-      console.error('Demo error stack:', demoError?.stack);
-      // Show error to user
-      const gameRoot = document.getElementById('game-root');
-      if (gameRoot) {
-        const errorMessage = error?.message || demoError?.message || 'Unknown error';
-        gameRoot.innerHTML = `<div style="color: white; padding: 40px; text-align: center; background: rgba(0,0,0,0.9); height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-          <h2 style="color: #ff6b6b; margin-bottom: 20px;">Initialization Error</h2>
-          <p style="margin: 10px 0;"><strong>Backend Connection Failed:</strong></p>
-          <p style="margin: 10px 0; color: #ffd93d;">${errorMessage}</p>
-          <p style="margin: 20px 0; font-size: 14px;">Please ensure the backend services are running:</p>
-          <ul style="text-align: left; display: inline-block; margin: 20px 0;">
-            <li>RGS service on port 5100</li>
-            <li>Game Engine on port 5101</li>
-            <li>RNG Host on port 5102</li>
-          </ul>
-          <p style="margin-top: 20px; font-size: 12px; color: #888;">Check the browser console (F12) for more details.</p>
-        </div>`;
-      }
+    // Backend connection is required - show error and stop initialization
+    const gameRoot = document.getElementById('game-root');
+    if (gameRoot) {
+      const errorMessage = error?.message || 'Unknown error';
+      gameRoot.innerHTML = `<div style="color: white; padding: 40px; text-align: center; background: rgba(0,0,0,0.9); height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+        <h2 style="color: #ff6b6b; margin-bottom: 20px;">Backend Connection Failed</h2>
+        <p style="margin: 10px 0;"><strong>Error:</strong></p>
+        <p style="margin: 10px 0; color: #ffd93d;">${errorMessage}</p>
+        <p style="margin: 20px 0; font-size: 14px;">Please ensure the backend services are running:</p>
+        <ul style="text-align: left; display: inline-block; margin: 20px 0;">
+          <li>RGS service on port 5100</li>
+          <li>Game Engine on port 5101</li>
+          <li>RNG Host on port 5102</li>
+        </ul>
+        <p style="margin-top: 20px; font-size: 12px; color: #888;">Check the browser console (F12) for more details.</p>
+      </div>`;
     }
   }
   // ROUND and CURRENT WIN elements removed - no longer needed
@@ -482,7 +447,7 @@ async function main() {
       
       // Step 2: Send spin request to backend and wait for results
       console.log('[main] startSpin: Sending play request to backend...');
-      const playResponse = await network.play(sessionInfo.gameId, playPayload);
+      const playResponse = await network.play(sessionInfo.operatorId || 'operatorX', sessionInfo.gameId, playPayload);
       console.log('[main] startSpin: Backend response received', {
         hasResults: !!playResponse.results,
         hasReelSymbols: !!playResponse.results?.reelSymbols,
@@ -560,7 +525,7 @@ async function main() {
       };
       
       // Send buy request to backend
-      const response = await network.buyFreeSpins(sessionInfo.gameId, buyPayload);
+      const response = await network.buyFreeSpins(sessionInfo.operatorId || 'operatorX', sessionInfo.gameId, buyPayload);
       
       // Render results (will trigger free spin transition if successful)
       sceneManager.renderResults(response.results, response);
