@@ -432,7 +432,8 @@ async function main() {
     
     // Disable all controls during spin
     setControlsDisabled(true);
-    
+    totalWinLabel.textContent = '0.00';
+
     try {
       // CRITICAL: Get backend response FIRST before starting visual spin
       // This ensures we know the reel heights and symbols before spinning starts
@@ -456,7 +457,11 @@ async function main() {
         win: playResponse.win,
         balance: playResponse.balance
       });
-      
+      const cascadeWinAmounts = playResponse.results?.cascadeWinAmounts ?? playResponse.results?.cascades?.map(c => (c.totalWin ?? c.TotalWin ?? 0)) ?? [];
+      const totalWin = getMoneyAmount(playResponse.win ?? playResponse.results?.totalWin);
+      console.log('[main] startSpin: Cascade win amounts (each hit):', cascadeWinAmounts.map((a, i) => `Cascade ${i + 1}: ${Number(a).toFixed(2)}`).join(', '));
+      console.log('[main] startSpin: Total win:', totalWin.toFixed(2));
+
       if (playResponse.results?.reelSymbols) {
         console.log('[main] startSpin: Reel symbols from backend:', playResponse.results.reelSymbols.map(r => r?.length || 0));
       }
@@ -472,7 +477,12 @@ async function main() {
       
       // Step 5: Render results (handles cascades, free spins, etc.)
       console.log('[main] startSpin: Calling renderResults...');
-      sceneManager.renderResults(playResponse.results, playResponse);
+      sceneManager.renderResults(playResponse.results, playResponse, {
+        onCascadeWin: (stepIndex, stepWin, runningTotal) => {
+          console.log(`[main] Cascade ${stepIndex + 1} hit: win=${stepWin.toFixed(2)}, running total=${runningTotal.toFixed(2)}`);
+          totalWinLabel.textContent = runningTotal.toFixed(2);
+        }
+      });
       console.log('[main] startSpin: renderResults completed');
       
       // Step 5: Update UI with results

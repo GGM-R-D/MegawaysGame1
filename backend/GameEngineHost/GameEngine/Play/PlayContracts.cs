@@ -42,7 +42,11 @@ public sealed record ResultsEnvelope(
     IReadOnlyList<IReadOnlyList<string>>? ReelSymbols,
     IReadOnlyList<int>? ReelHeights = null,
     IReadOnlyList<string>? TopReelSymbols = null,
-    int? WaysToWin = null);
+    int? WaysToWin = null,
+    /// <summary>Win amount for each cascade hit (same order as Cascades). Enables frontend to animate win as symbols hit.</summary>
+    IReadOnlyList<decimal>? CascadeWinAmounts = null,
+    /// <summary>Total win for the spin (cascade wins + scatter).</summary>
+    decimal? TotalWin = null);
 
 public sealed record CascadeStep(
     int Index,

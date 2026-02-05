@@ -39,10 +39,10 @@ builder.Services.AddSingleton<ITimeService, TimeService>();
 // Configure Game Configuration Loader
 var configDirectory = Path.GetFullPath(
     Path.Combine(builder.Environment.ContentRootPath, 
-        builder.Configuration["GameEngine:ConfigurationDirectory"] ?? "configs"));
+        builder.Configuration["GameEngine:ConfigurationDirectory"] ?? "..\\..\\GameEngineHost\\configs"));
 var manifestPath = Path.GetFullPath(
     Path.Combine(builder.Environment.ContentRootPath,
-        builder.Configuration["GameEngine:ControlProgramManifest"] ?? "control-program-manifest.json"));
+        builder.Configuration["GameEngine:ControlProgramManifest"] ?? "..\\..\\GameEngineHost\\configs\\control-program-manifest.json"));
 
 builder.Services.AddGameEngine(configDirectory, manifestPath);
 

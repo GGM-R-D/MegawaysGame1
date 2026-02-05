@@ -7,6 +7,13 @@ namespace GameEngine.Play;
 
 public sealed class WinEvaluator
 {
+    /// <summary>Reel symbols are passed as Codes (WILD, J, COUGAR). SymbolMap is keyed by Sym (Sym12, Sym10). Look up definition by Code.</summary>
+    private static SymbolDefinition? GetDefinitionByCode(GameConfiguration configuration, string symbolCode)
+    {
+        if (string.IsNullOrEmpty(symbolCode)) return null;
+        return configuration.SymbolCatalog?.FirstOrDefault(s =>
+            string.Equals(s.Code, symbolCode, StringComparison.OrdinalIgnoreCase));
+    }
     public WinEvaluationResult Evaluate(IReadOnlyList<string> grid, GameConfiguration configuration, Money bet)
     {
         // Convert flat array to jagged array for Megaways
@@ -93,13 +100,13 @@ public sealed class WinEvaluator
         // Maximum value for Money type (decimal(20,2))
         const decimal maxMoneyValue = 999999999999999999.99m;
         
-        // Build symbol map for quick lookup
-        var symbolMap = configuration.SymbolMap;
-
         foreach (var entry in configuration.Paytable)
         {
             var targetSymbol = entry.SymbolCode;
-            
+            var targetDef = GetDefinitionByCode(configuration, targetSymbol);
+            if (targetDef?.Type == SymbolType.Scatter)
+                continue; // Scatter wins are evaluated separately
+
             // Check if symbol appears on Reel 0 (leftmost) - REQUIRED for win
             // Wilds don't appear on reel 0 (reel 1), so the target symbol must appear directly
             if (reelSymbols[0].Count == 0 || !reelSymbols[0].Contains(targetSymbol))
@@ -124,27 +131,15 @@ public sealed class WinEvaluator
                     var symbol = reel[pos];
                     
                     // Check if symbol matches target, or if it's a wild (on reels 2-5)
+                    // Reel symbols are Codes (WILD, J); look up by Code not Sym
                     bool isMatch = symbol == targetSymbol;
                     bool isWild = false;
-                    
-                    // Wilds on reels 2-5 (indices 1-4, which are reels 2-5) substitute for any symbol except Scatter
                     if (reelIndex >= 1 && reelIndex <= 4)
                     {
-                        // Check if symbol is a Wild type (wilds substitute for all except Scatter)
-                        if (symbolMap.ContainsKey(symbol))
-                        {
-                            var symbolDef = symbolMap[symbol];
-                            if (symbolDef.Type == SymbolType.Wild)
-                            {
-                                // Wilds substitute for all symbols except Scatter
-                                if (symbolMap.ContainsKey(targetSymbol) && symbolMap[targetSymbol].Type != SymbolType.Scatter)
-                                {
-                                    isWild = true;
-                                }
-                            }
-                        }
+                        var symbolDef = GetDefinitionByCode(configuration, symbol);
+                        if (symbolDef?.Type == SymbolType.Wild && targetDef != null)
+                            isWild = true; // Wild substitutes for any paying symbol (targetDef already excluded Scatter)
                     }
-                    
                     if (isMatch || isWild)
                     {
                         symbolCount++;
@@ -176,27 +171,14 @@ public sealed class WinEvaluator
                     if (topIndex >= 0 && topIndex < topReelSymbols.Count)
                     {
                         var topSym = topReelSymbols[topIndex];
-                        // Check if top reel symbol matches target or is wild
                         bool topMatch = topSym == targetSymbol;
                         bool topWild = false;
-                        
-                        // Wilds on top reel (reels 2-5, indices 1-4) substitute for any symbol except Scatter
                         if (reelIndex >= 1 && reelIndex <= 4)
                         {
-                            if (symbolMap.ContainsKey(topSym))
-                            {
-                                var symbolDef = symbolMap[topSym];
-                                if (symbolDef.Type == SymbolType.Wild)
-                                {
-                                    // Wilds substitute for all symbols except Scatter
-                                    if (symbolMap.ContainsKey(targetSymbol) && symbolMap[targetSymbol].Type != SymbolType.Scatter)
-                                    {
-                                        topWild = true;
-                                    }
-                                }
-                            }
+                            var topSymDef = GetDefinitionByCode(configuration, topSym);
+                            if (topSymDef?.Type == SymbolType.Wild && targetDef != null)
+                                topWild = true;
                         }
-                        
                         if (topMatch || topWild)
                         {
                             symbolCount++;

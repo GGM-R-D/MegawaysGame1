@@ -294,6 +294,7 @@ public sealed class SpinHandler
                 TotalWin: cascadeFinalWin,
                 TopReelSymbolsBefore: topReelSymbolsBefore,
                 TopReelSymbolsAfter: topReelSymbolsAfter));
+            Console.WriteLine($"[SpinHandler] Cascade {cascades.Count} hit - Win: {cascadeFinalWin.Amount}");
         }
 
         var scatterOutcome = ResolveScatterOutcome(board, configuration, request.TotalBet);
@@ -441,6 +442,8 @@ public sealed class SpinHandler
         }
         Console.WriteLine($"[SpinHandler] ================================================");
 
+        var cascadeWinAmounts = cascades.Select(c => c.TotalWin.Amount).ToList();
+        Console.WriteLine($"[SpinHandler] Cascade win amounts: [{string.Join(", ", cascadeWinAmounts)}]");
         Console.WriteLine($"[SpinHandler] Spin completed - TotalWin: {totalWin.Amount}, Cascades: {cascades.Count}, Wins: {wins.Count}");
         if (reelHeights != null)
         {
@@ -466,7 +469,9 @@ public sealed class SpinHandler
                 ReelSymbols: finalReelSymbols,
                 ReelHeights: reelHeights,
                 TopReelSymbols: topReelSymbols,
-                WaysToWin: waysToWin));
+                WaysToWin: waysToWin,
+                CascadeWinAmounts: cascadeWinAmounts,
+                TotalWin: totalWin.Amount));
 
         _telemetry.Record(new SpinTelemetryEvent(
             GameId: request.GameId,

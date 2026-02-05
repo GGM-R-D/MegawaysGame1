@@ -91,9 +91,10 @@ export default class AnimationManager {
    * @param {AudioManager} [options.audioManager] - Audio manager for win sounds
    * @param {Object} [options.playResponse] - Full play response (for win amount calculation)
    * @param {boolean} [options.isTurboMode] - Turbo mode flag (overrides instance flag)
+   * @param {function(number, number, number)} [options.onCascadeWin] - Called when each cascade hits: (stepIndex, stepWinAmount, runningTotal)
    * @returns {void}
    */
-  playCascadeSequence(cascades, { gridRenderer, assets, audioManager, playResponse, isTurboMode = false } = {}) {
+  playCascadeSequence(cascades, { gridRenderer, assets, audioManager, playResponse, isTurboMode = false, onCascadeWin = null } = {}) {
     if (gridRenderer) {
       this.grid = gridRenderer;
     }
@@ -116,6 +117,7 @@ export default class AnimationManager {
           this.grid.isCascading = true;
         }
       }
+      let runningTotal = 0;
       for (let i = 0; i < cascades.length; i += 1) {
         const step = cascades[i];
         // Support both camelCase (API) and PascalCase (legacy) so top reel is always correct for this step
@@ -130,27 +132,22 @@ export default class AnimationManager {
         const holdDuration = this.isTurboMode ? STATIC_HOLD_DURATION * TURBO_MULTIPLIER : STATIC_HOLD_DURATION;
         await this._delay(holdDuration);
         await this.highlightWins(step);
+
+        // Per-hit win from backend (camelCase or PascalCase); show amount as symbols hit
+        const stepWinAmount = typeof step.totalWin === 'number' ? step.totalWin : (step.TotalWin ?? 0);
+        runningTotal += stepWinAmount;
+        if (typeof onCascadeWin === 'function') {
+          onCascadeWin(i, stepWinAmount, runningTotal);
+        }
+        console.log(`[AnimationManager] Cascade ${i + 1} hit: win=${stepWinAmount.toFixed(2)}, running total=${runningTotal.toFixed(2)}`);
         
-        // Play win sound for tumble wins
-        if (this.audioManager && step.winsAfterCascade && step.winsAfterCascade.length > 0) {
-          // Calculate total win amount for this cascade step
-          let stepWinAmount = 0;
-          step.winsAfterCascade.forEach(win => {
-            if (win && typeof win.amount === 'number') {
-              stepWinAmount += win.amount;
-            } else if (win && win.amount && typeof win.amount.amount === 'number') {
-              stepWinAmount += win.amount.amount;
-            }
-          });
-          
-          if (stepWinAmount > 0) {
-            // Consider it a big win if win is 10x or more of base bet
-            const baseBet = this.playResponse?.baseBet ?? 0.2;
-            if (stepWinAmount >= baseBet * 10) {
-              this.audioManager.playBigWin();
-            } else {
-              this.audioManager.playWin();
-            }
+        // Play win sound for tumble wins (use backend step totalWin)
+        if (this.audioManager && stepWinAmount > 0) {
+          const baseBet = this.playResponse?.baseBet ?? 0.2;
+          if (stepWinAmount >= baseBet * 10) {
+            this.audioManager.playBigWin();
+          } else {
+            this.audioManager.playWin();
           }
         }
         

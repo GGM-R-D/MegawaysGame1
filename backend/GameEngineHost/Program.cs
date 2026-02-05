@@ -19,8 +19,8 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-var configDirectory = ResolvePath(builder.Configuration["GameEngine:ConfigurationDirectory"] ?? "..\\RGS\\RGS\\configs", builder.Environment);
-var manifestPath = ResolvePath(builder.Configuration["GameEngine:ControlProgramManifest"] ?? "..\\RGS\\RGS\\control-program-manifest.json", builder.Environment);
+var configDirectory = ResolvePath(builder.Configuration["GameEngine:ConfigurationDirectory"] ?? "configs", builder.Environment);
+var manifestPath = ResolvePath(builder.Configuration["GameEngine:ControlProgramManifest"] ?? "configs/control-program-manifest.json", builder.Environment);
 builder.Services.AddGameEngine(configDirectory, manifestPath);
 builder.Services.AddSingleton<ISpinTelemetrySink, NullSpinTelemetrySink>();
 builder.Services.AddSingleton<IEngineClient, LocalEngineClient>();

@@ -278,8 +278,10 @@ export default class SceneManager {
    * 
    * @param {Object} results - Game results from backend
    * @param {Object} [playResponse] - Full play response (includes win, balance, etc.)
+   * @param {Object} [options] - Optional callbacks
+   * @param {function(number, number, number)} [options.onCascadeWin] - Called when each cascade hits: (stepIndex, stepWinAmount, runningTotal)
    */
-  renderResults(results, playResponse = null) {
+  renderResults(results, playResponse = null, options = null) {
     if (!results || !this.gridRenderer) {
       return;
     }
@@ -301,12 +303,12 @@ export default class SceneManager {
       this.audioManager.playFreeSpinMusic();
       // Play transition video, then continue with results
       return this.playFreeSpinTransition(() => {
-        this.continueRenderResults(results, playResponse);
+        this.continueRenderResults(results, playResponse, options);
       });
     }
 
     // No free spins triggered, proceed with normal rendering
-    this.continueRenderResults(results, playResponse);
+    this.continueRenderResults(results, playResponse, options);
   }
 
   /**
@@ -322,8 +324,9 @@ export default class SceneManager {
    * 
    * @param {Object} results - Game results from backend
    * @param {Object} [playResponse] - Full play response
+   * @param {Object} [options] - Optional callbacks (e.g. onCascadeWin)
    */
-  continueRenderResults(results, playResponse = null) {
+  continueRenderResults(results, playResponse = null, options = null) {
     if (!results || !this.gridRenderer) {
       return;
     }
@@ -488,7 +491,8 @@ export default class SceneManager {
         assets: this.assets,
         audioManager: this.audioManager,
         playResponse: playResponse,
-        isTurboMode: this.isTurboMode
+        isTurboMode: this.isTurboMode,
+        onCascadeWin: options?.onCascadeWin ?? null
       });
       
       // Play win sound if there's a win (check final cascade or playResponse)
