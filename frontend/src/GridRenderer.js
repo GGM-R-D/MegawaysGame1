@@ -2870,6 +2870,44 @@ export default class GridRenderer {
     this.preloadSpinResult(symbolMatrix, assets);
   }
 
+  /**
+   * Builds an initial jagged grid from loaded reel strips (same logic as backend).
+   * Used on game load so the grid shows correct symbols and layout before first spin.
+   * @returns {{ reelSymbols: Array<Array<string>>, topReelSymbols: Array<string> } | null} Initial grid or null if strips not loaded
+   */
+  buildInitialGridFromStrips() {
+    if (!this.reelStrips || this.reelStrips.length < this.columns || !this.availableSymbols?.length) {
+      return null;
+    }
+    const topReelCovers = [1, 2, 3, 4];
+    const heights = this.reelHeights && this.reelHeights.length >= this.columns
+      ? this.reelHeights
+      : Array(this.columns).fill(this.rows);
+    const reelSymbols = [];
+    for (let c = 0; c < this.columns; c++) {
+      const strip = this.reelStrips[c];
+      if (!strip || strip.length === 0) return null;
+      const visibleCount = heights[c] - (topReelCovers.includes(c) ? 1 : 0);
+      const start = Math.floor(Math.random() * strip.length);
+      const col = [];
+      for (let r = 0; r < visibleCount; r++) {
+        const idx = (start + r) % strip.length;
+        const code = this.availableSymbols[strip[idx]];
+        col.push(code != null ? code : this.availableSymbols[0]);
+      }
+      reelSymbols.push(col);
+    }
+    // Top reel: 4 symbols (one per covered reel), sample from strip 1
+    const topStrip = this.reelStrips[1] || this.reelStrips[0];
+    const topStart = Math.floor(Math.random() * (topStrip?.length || 1));
+    const topReelSymbols = [];
+    for (let i = 0; i < 4; i++) {
+      const idx = topStrip[(topStart + i) % topStrip.length];
+      topReelSymbols.push(this.availableSymbols[idx] != null ? this.availableSymbols[idx] : this.availableSymbols[0]);
+    }
+    return { reelSymbols, topReelSymbols };
+  }
+
   initializeReels(assets) {
     this.currentAssets = assets;
     if (this.reels.length === 0) {

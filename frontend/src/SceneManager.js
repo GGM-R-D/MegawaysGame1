@@ -226,8 +226,20 @@ export default class SceneManager {
     const defaultHeights = Array(this.columns).fill(this.rows);
     this.gridRenderer.setReelHeights(defaultHeights);
     this.gridSize = this.gridRenderer.getSize();
-    // Initialize reels with random symbols for initial display
+    // Initialize reels (builds structure; may show spin layer first)
     this.gridRenderer.initializeReels(this.assets);
+
+    // Apply initial grid from reel strips so the game shows correct jagged layout from the start
+    const initialGrid = this.gridRenderer.buildInitialGridFromStrips();
+    if (initialGrid) {
+      this.gridRenderer.setTopReel(initialGrid.topReelSymbols);
+      if (this.topReelRenderer && initialGrid.topReelSymbols.length > 0) {
+        this.topReelRenderer.setSymbols(initialGrid.topReelSymbols);
+      }
+      this.gridRenderer.renderGridFromMatrix(initialGrid.reelSymbols, this.assets);
+      this.gridRenderer.resultMatrix = initialGrid.reelSymbols.map(col => [...col]);
+      this.gridRenderer.enterGridMode();
+    }
     
     // Position megaways display initially
     this.gridRenderer.positionMegawaysDisplay();
