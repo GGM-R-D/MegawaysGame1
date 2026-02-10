@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using GameEngine;
 using GameEngine.Configuration;
 using GameEngine.Play;
@@ -63,11 +64,12 @@ builder.Services.AddSingleton<GameConfigService>(sp =>
     return new GameConfigService(configLoader);
 });
 
-// Configure JSON options for both requests and responses
+// Configure JSON options for both requests and responses (used when RGS calls the engine)
 builder.Services.Configure<JsonOptions>(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     options.SerializerOptions.Converters.Add(new MoneyJsonConverter());
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
 // Configure JSON options for minimal API request binding
@@ -75,6 +77,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     options.SerializerOptions.Converters.Add(new MoneyJsonConverter());
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
 var engineBaseUrl = builder.Configuration["Engine:BaseUrl"] ?? "http://localhost:5101";
@@ -657,7 +660,8 @@ static bool TryParseBetMode(string? value, out BetMode mode)
 static Money CalculateTotalBet(Money baseBet, BetMode mode)
 {
     var multiplier = mode == BetMode.Ante ? 1.25m : 1m;
-    return new Money(baseBet.Amount * multiplier);
+    var amount = decimal.Round(baseBet.Amount * multiplier, 2, MidpointRounding.ToEven);
+    return new Money(amount);
 }
 
 static List<BetRequest> ConvertBetRequests(IReadOnlyList<ClientBetRequest> bets)

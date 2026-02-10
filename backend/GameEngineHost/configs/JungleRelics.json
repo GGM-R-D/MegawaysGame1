@@ -50,7 +50,7 @@
   "buyFeature": {
     "enabledBetMode": "standard",
     "costMultiplier": 100,
-    "entryReelKey": "reelsetBB"
+    "entryReelKey": "reelsetFreeSpins"
   },
   "multiplier": {
     "values": [2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 50, 100, 250, 500],
@@ -63,18 +63,18 @@
     }
   },
   "paytable": [
-    { "symbolCode": "BUFFALO", "multipliers": [{ "count": 2, "multiplier": 2 }, { "count": 3, "multiplier": 4 }, { "count": 4, "multiplier": 8 }, { "count": 5, "multiplier": 20 }, { "count": 6, "multiplier": 40 }] },
-    { "symbolCode": "EAGLE", "multipliers": [{ "count": 3, "multiplier": 1.5 }, { "count": 4, "multiplier": 2.5 }, { "count": 5, "multiplier": 5 }, { "count": 6, "multiplier": 12.5 }] },
-    { "symbolCode": "COUGAR", "multipliers": [{ "count": 3, "multiplier": 1.5 }, { "count": 4, "multiplier": 2.5 }, { "count": 5, "multiplier": 5 }, { "count": 6, "multiplier": 12.5 }] },
-    { "symbolCode": "WOLF", "multipliers": [{ "count": 3, "multiplier": 1 }, { "count": 4, "multiplier": 1.5 }, { "count": 5, "multiplier": 2.5 }, { "count": 6, "multiplier": 7.5 }] },
-    { "symbolCode": "MOOSE", "multipliers": [{ "count": 3, "multiplier": 1 }, { "count": 4, "multiplier": 1.5 }, { "count": 5, "multiplier": 2.5 }, { "count": 6, "multiplier": 7.5 }] },
-    { "symbolCode": "A", "multipliers": [{ "count": 3, "multiplier": 0.6 }, { "count": 4, "multiplier": 1 }, { "count": 5, "multiplier": 1.5 }, { "count": 6, "multiplier": 3 }] },
-    { "symbolCode": "K", "multipliers": [{ "count": 3, "multiplier": 0.6 }, { "count": 4, "multiplier": 1 }, { "count": 5, "multiplier": 1.5 }, { "count": 6, "multiplier": 3 }] },
-    { "symbolCode": "Q", "multipliers": [{ "count": 3, "multiplier": 0.4 }, { "count": 4, "multiplier": 0.6 }, { "count": 5, "multiplier": 1 }, { "count": 6, "multiplier": 2 }] },
-    { "symbolCode": "J", "multipliers": [{ "count": 3, "multiplier": 0.4 }, { "count": 4, "multiplier": 0.6 }, { "count": 5, "multiplier": 1 }, { "count": 6, "multiplier": 2 }] },
-    { "symbolCode": "10", "multipliers": [{ "count": 3, "multiplier": 0.2 }, { "count": 4, "multiplier": 0.4 }, { "count": 5, "multiplier": 0.8 }, { "count": 6, "multiplier": 1.5 }] }
+    { "symbolCode": "BUFFALO", "multipliers": [{ "count": 2, "multiplier": 1 }, { "count": 3, "multiplier": 2 }, { "count": 4, "multiplier": 4 }, { "count": 5, "multiplier": 10 }, { "count": 6, "multiplier": 20 }] },
+    { "symbolCode": "EAGLE", "multipliers": [{ "count": 3, "multiplier": 0.75 }, { "count": 4, "multiplier": 1.25 }, { "count": 5, "multiplier": 2.5 }, { "count": 6, "multiplier": 6.25 }] },
+    { "symbolCode": "COUGAR", "multipliers": [{ "count": 3, "multiplier": 0.5 }, { "count": 4, "multiplier": 0.75 }, { "count": 5, "multiplier": 1.25 }, { "count": 6, "multiplier": 3.75 }] },
+    { "symbolCode": "WOLF", "multipliers": [{ "count": 3, "multiplier": 0.3 }, { "count": 4, "multiplier": 0.5 }, { "count": 5, "multiplier": 0.75 }, { "count": 6, "multiplier": 1.5 }] },
+    { "symbolCode": "MOOSE", "multipliers": [{ "count": 3, "multiplier": 0.3 }, { "count": 4, "multiplier": 0.5 }, { "count": 5, "multiplier": 0.75 }, { "count": 6, "multiplier": 1.5 }] },
+    { "symbolCode": "A", "multipliers": [{ "count": 3, "multiplier": 0.2 }, { "count": 4, "multiplier": 0.3 }, { "count": 5, "multiplier": 0.5 }, { "count": 6, "multiplier": 1 }] },
+    { "symbolCode": "K", "multipliers": [{ "count": 3, "multiplier": 0.2 }, { "count": 4, "multiplier": 0.3 }, { "count": 5, "multiplier": 0.5 }, { "count": 6, "multiplier": 1 }] },
+    { "symbolCode": "Q", "multipliers": [{ "count": 3, "multiplier": 0.1 }, { "count": 4, "multiplier": 0.2 }, { "count": 5, "multiplier": 0.4 }, { "count": 6, "multiplier": 0.75 }] },
+    { "symbolCode": "J", "multipliers": [{ "count": 3, "multiplier": 0.1 }, { "count": 4, "multiplier": 0.2 }, { "count": 5, "multiplier": 0.4 }, { "count": 6, "multiplier": 0.6 }] },
+    { "symbolCode": "10", "multipliers": [{ "count": 3, "multiplier": 0.1 }, { "count": 4, "multiplier": 0.2 }, { "count": 5, "multiplier": 0.4 }, { "count": 6, "multiplier": 0.6 }] }
   ],
-  "betLevels": [0.2, 0.4, 1, 2, 5, 10],
+  "betLevels": [0.20, 0.40, 0.60, 0.80, 1.00, 1.20, 1.40, 1.60, 1.80, 2.00, 2.40, 2.80, 3.00, 3.20, 3.60, 4.00, 5.00, 6.00, 7.00, 8.00, 9.00, 10.00, 12, 14, 16, 18, 20, 24, 28, 30, 32, 36, 40, 50, 60, 70, 80, 90, 100],
   "defaultBetIndex": 0,
   "scatter": {
     "rewards": [
@@ -93,7 +93,7 @@
     "keys": {
       "high": "reelsetHigh",
       "low": "reelsetLow",
-      "buy": "reelsetBB",
+      "buy": "reelsetFreeSpins",
       "freeSpins": "reelsetFreeSpins"
     }
   },

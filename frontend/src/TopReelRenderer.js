@@ -21,6 +21,7 @@
 
 import * as PIXI from 'pixi.js';
 import { gsap } from 'gsap';
+import { getSymbolTexture } from './symbolTexture.js';
 
 /** Base spin duration in milliseconds */
 const SPIN_BASE_TIME = 1200;
@@ -239,7 +240,7 @@ export default class TopReelRenderer {
 
     // Get available textures
     const slotTextures = this.availableSymbols
-      .map(alias => assets.get(alias))
+      .map(alias => getSymbolTexture(assets, alias))
       .filter(texture => texture != null);
 
     if (slotTextures.length === 0) {
@@ -358,7 +359,7 @@ export default class TopReelRenderer {
       if (!sprite || sprite.destroyed) continue;
       if (i < this.symbolCount && i < this.currentSymbols.length) {
         const symbolCode = this.currentSymbols[i];
-        const texture = symbolCode ? (assets.get(symbolCode) ?? assets.get('PLACEHOLDER')) : null;
+        const texture = symbolCode ? (getSymbolTexture(assets, symbolCode) ?? assets.get('PLACEHOLDER')) : null;
         if (texture) {
           sprite.texture = texture;
           const scale = Math.min(
@@ -498,7 +499,7 @@ export default class TopReelRenderer {
 
       const sprite = this.symbols[spriteIndex];
       if (sprite && !sprite.destroyed) {
-        const texture = assets.get(symbolCode) ?? assets.get('PLACEHOLDER');
+        const texture = getSymbolTexture(assets, symbolCode) ?? assets.get('PLACEHOLDER');
         if (texture) {
           const scale = Math.min(
             this.symbolSize / texture.width,
@@ -594,7 +595,7 @@ export default class TopReelRenderer {
         continue;
       }
 
-      const texture = assets.get(symbolCode) ?? assets.get('PLACEHOLDER');
+      const texture = getSymbolTexture(assets, symbolCode) ?? assets.get('PLACEHOLDER');
       if (!texture) {
         console.warn(`[TopReelRenderer] _renderGridSymbols: No texture found for symbol ${symbolCode} at index ${i}`);
         continue;
@@ -738,7 +739,7 @@ export default class TopReelRenderer {
           continue; // Already has a sprite (moved from elsewhere)
         }
 
-        const texture = assets.get(nextSymbol) ?? assets.get('PLACEHOLDER');
+        const texture = getSymbolTexture(assets, nextSymbol) ?? assets.get('PLACEHOLDER');
         if (!texture) {
           continue;
         }

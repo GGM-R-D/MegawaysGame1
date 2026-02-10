@@ -60,6 +60,13 @@ export default class ThemeManager {
       loadParser: asset.loadParser
     }));
 
+    // Inject 10 symbol from Ten.png if not already in manifest (place Ten.png in frontend/public/Ten.png)
+    const has10 = manifest.assets.some((a) => a.alias === '10' || a.alias === 'TEN');
+    if (gameId === 'JungleRelics' && !has10) {
+      entries.push({ alias: '10', src: '/Ten.png' });
+      entries.push({ alias: 'TEN', src: '/Ten.png' });
+    }
+
     try {
       await this.assetLoader.loadBundle(bundleId, entries, assetLoader);
       return manifest;
@@ -109,5 +116,6 @@ export default class ThemeManager {
     }
     return `${this.assetBasePath}${relativePath}` || relativePath;
   }
+
 }
 

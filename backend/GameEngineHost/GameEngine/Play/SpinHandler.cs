@@ -521,7 +521,7 @@ public sealed class SpinHandler
         return mode switch
         {
             SpinMode.FreeSpins => configuration.ReelLibrary.FreeSpins,
-            SpinMode.BuyEntry => configuration.ReelLibrary.Buy,
+            SpinMode.BuyEntry => configuration.ReelLibrary.FreeSpins,
             _ => SelectBaseReels(configuration, betMode)
         };
     }

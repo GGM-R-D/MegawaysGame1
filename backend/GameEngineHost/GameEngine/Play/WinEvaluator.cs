@@ -236,10 +236,10 @@ public sealed class WinEvaluator
                 continue;
             }
             
-            // Payout calculation: Bet × SymbolValue(for N reels) × Ways
-            // Formula: Total Win = Bet * SymbolValue(for N reels) * Ways
+            // Payout calculation: Bet × SymbolValue(for N reels) — total payout for this symbol win (no ways multiplier)
+            // Buffalo King Megaways style: paytable values are the total win for that symbol/reel-count, not per-way.
             var basePayout = Money.FromBet(bet.Amount, bestMatch.Multiplier);
-            var payoutAmount = basePayout.Amount * ways;
+            var payoutAmount = basePayout.Amount;
             
             // Round and clamp to valid range
             payoutAmount = Math.Round(payoutAmount, 2, MidpointRounding.ToZero);

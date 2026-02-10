@@ -71,7 +71,11 @@ async function main() {
   // Game state variables
   let sessionInfo = null; // Session data from backend (sessionId, gameId, balance, etc.)
   let activeBetMode = 'standard'; // Bet mode: 'standard' or 'ante'
-  let currentBaseBet = 0.2; // Current bet amount in currency units
+  // Bet levels from backend (Buffalo King Megaways style); fallback until session returns game.bet.levels
+  const betLevelsFallback = [0.20, 0.40, 0.60, 0.80, 1.00, 1.20, 1.40, 1.60, 1.80, 2.00, 2.40, 2.80, 3.00, 3.20, 3.60, 4.00, 5.00, 6.00, 7.00, 8.00, 9.00, 10.00, 12, 14, 16, 18, 20, 24, 28, 30, 32, 36, 40, 50, 60, 70, 80, 90, 100];
+  let betLevels = [...betLevelsFallback];
+  let currentBetIndex = 0; // Index into betLevels
+  let currentBaseBet = betLevels[0]; // Current bet amount in currency units
   let isTurboMode = false; // Turbo mode flag (speeds up animations)
 
   // Get references to UI elements from index.html
@@ -166,28 +170,37 @@ async function main() {
   });
   
   // Initialize UI with default values
-  betAmountLabel.textContent = currentBaseBet.toFixed(2);
+  betAmountLabel.textContent = formatBetAmount(currentBaseBet);
   updateControlStates(); // Set initial button states
 
-  // Bet adjustment buttons (up/down arrows)
+  /** Format bet for display (e.g. 0.2 -> "0.20", 12 -> "12.00") */
+  function formatBetAmount(amount) {
+    const n = Number(amount);
+    return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+  }
+
+  // Bet adjustment buttons (up/down) - step through backend bet levels
   const betUpButton = document.getElementById('bet-up');
   const betDownButton = document.getElementById('bet-down');
-  const betIncrement = 0.10; // Standard bet increment/decrement amount
 
-  // Increase bet amount
+  // Increase bet (next level)
   betUpButton.addEventListener('click', () => {
     sceneManager.audioManager?.playClick();
-    currentBaseBet += betIncrement;
-    currentBaseBet = Math.round(currentBaseBet * 100) / 100; // Round to 2 decimals to prevent floating point errors
-    betAmountLabel.textContent = currentBaseBet.toFixed(2);
+    if (currentBetIndex < betLevels.length - 1) {
+      currentBetIndex += 1;
+      currentBaseBet = betLevels[currentBetIndex];
+      betAmountLabel.textContent = formatBetAmount(currentBaseBet);
+    }
   });
 
-  // Decrease bet amount (minimum 0.10)
+  // Decrease bet (previous level)
   betDownButton.addEventListener('click', () => {
     sceneManager.audioManager?.playClick();
-    currentBaseBet = Math.max(0.10, currentBaseBet - betIncrement); // Don't go below minimum
-    currentBaseBet = Math.round(currentBaseBet * 100) / 100; // Round to 2 decimals
-    betAmountLabel.textContent = currentBaseBet.toFixed(2);
+    if (currentBetIndex > 0) {
+      currentBetIndex -= 1;
+      currentBaseBet = betLevels[currentBetIndex];
+      betAmountLabel.textContent = formatBetAmount(currentBaseBet);
+    }
   });
 
   // Turbo mode button - speeds up all animations by 60%
@@ -220,19 +233,52 @@ async function main() {
   updateTimestamp(); // Initial update
   setInterval(updateTimestamp, 1000); // Update every second
 
-  // Bet adjustment modal - allows precise bet amount entry
+  // Bet adjustment modal - bet levels from backend (all levels shown as quick buttons)
   const betModal = document.getElementById('bet-modal');
   const betInput = document.getElementById('bet-input');
   const applyBetButton = document.getElementById('apply-bet');
   const closeBetModal = document.getElementById('close-bet-modal');
-  const betQuickButtons = document.querySelectorAll('.bet-quick-button');
+  const betButtonsContainer = document.querySelector('.bet-buttons');
+
+  /** Build quick bet buttons from current betLevels (called after session load and when levels change) */
+  function buildBetQuickButtons() {
+    if (!betButtonsContainer) return;
+    betButtonsContainer.innerHTML = '';
+    betLevels.forEach((level) => {
+      const btn = document.createElement('button');
+      btn.className = 'bet-quick-button';
+      btn.dataset.bet = String(level);
+      btn.textContent = formatBetAmount(level);
+      btn.addEventListener('click', () => {
+        sceneManager.audioManager?.playClick();
+        const betValue = parseFloat(btn.dataset.bet);
+        betInput.value = formatBetAmount(betValue);
+        updateBetQuickButtonsHighlight();
+      });
+      betButtonsContainer.appendChild(btn);
+    });
+  }
+
+  /** Highlight the quick button that matches current input value */
+  function updateBetQuickButtonsHighlight() {
+    const currentBet = parseFloat(betInput.value) || 0;
+    betButtonsContainer.querySelectorAll('.bet-quick-button').forEach(btn => {
+      const btnBet = parseFloat(btn.dataset.bet);
+      btn.classList.toggle('active', Math.abs(btnBet - currentBet) < 0.01);
+    });
+  }
+
+  // Build quick buttons on load (uses fallback betLevels until session returns)
+  buildBetQuickButtons();
 
   // Clicking bet amount label opens modal
   betAmountLabel.addEventListener('click', () => {
     sceneManager.audioManager?.playClick();
-    betInput.value = currentBaseBet.toFixed(2); // Pre-fill with current bet
-    updateBetQuickButtons(); // Highlight matching quick button
-    betModal.classList.add('active'); // Show modal
+    betInput.value = formatBetAmount(currentBaseBet);
+    betInput.min = betLevels[0];
+    betInput.max = betLevels[betLevels.length - 1];
+    updateBetQuickButtonsHighlight();
+    betModal.classList.add('active');
   });
 
   // Close modal button
@@ -241,41 +287,29 @@ async function main() {
     betModal.classList.remove('active');
   });
 
-  // Quick bet buttons (0.10, 0.20, 0.50, etc.) - set bet to preset value
-  betQuickButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      sceneManager.audioManager?.playClick();
-      const betValue = parseFloat(btn.dataset.bet);
-      betInput.value = betValue.toFixed(2);
-      updateBetQuickButtons(); // Update active state
-    });
-  });
-
-  /**
-   * Updates which quick bet button is highlighted based on current input value
-   * Highlights button if its value matches current bet (within 0.01 tolerance)
-   */
-  function updateBetQuickButtons() {
-    const currentBet = parseFloat(betInput.value) || 0;
-    betQuickButtons.forEach(btn => {
-      const btnBet = parseFloat(btn.dataset.bet);
-      btn.classList.toggle('active', Math.abs(btnBet - currentBet) < 0.01);
-    });
-  }
-
-  // Apply button - sets new bet amount and closes modal
+  // Apply button - snap to nearest bet level and close modal
   applyBetButton.addEventListener('click', () => {
     sceneManager.audioManager?.playClick();
-    const newBet = parseFloat(betInput.value);
-    if (newBet && newBet > 0) {
-      currentBaseBet = newBet;
-      betAmountLabel.textContent = currentBaseBet.toFixed(2);
-      betModal.classList.remove('active');
+    const raw = parseFloat(betInput.value);
+    if (!Number.isFinite(raw) || raw <= 0) return;
+    // Find nearest bet level
+    let bestIdx = 0;
+    let bestDiff = Math.abs(betLevels[0] - raw);
+    for (let i = 1; i < betLevels.length; i++) {
+      const d = Math.abs(betLevels[i] - raw);
+      if (d < bestDiff) {
+        bestDiff = d;
+        bestIdx = i;
+      }
     }
+    currentBetIndex = bestIdx;
+    currentBaseBet = betLevels[currentBetIndex];
+    betAmountLabel.textContent = formatBetAmount(currentBaseBet);
+    betModal.classList.remove('active');
   });
 
-  // Update quick buttons as user types
-  betInput.addEventListener('input', updateBetQuickButtons);
+  // Update quick button highlight as user types
+  betInput.addEventListener('input', updateBetQuickButtonsHighlight);
 
   // Info modal - displays game rules and paytable
   const infoModal = document.getElementById('info-modal');
@@ -359,7 +393,21 @@ async function main() {
 
     sessionInfo = { ...startResponse, operatorId }; // Store session info including operatorId for subsequent API calls
     console.log('Session started, gameId:', startResponse.gameId);
-    
+
+    // Use bet levels from backend (game.bet.levels) so frontend shows same levels as config
+    const levels = startResponse.game?.bet?.levels;
+    if (Array.isArray(levels) && levels.length > 0) {
+      betLevels = levels.map((v) => Number(v));
+      const defaultIdx = Math.max(0, Math.min(
+        Number(startResponse.game?.bet?.default ?? 0),
+        betLevels.length - 1
+      ));
+      currentBetIndex = defaultIdx;
+      currentBaseBet = betLevels[currentBetIndex];
+      betAmountLabel.textContent = formatBetAmount(currentBaseBet);
+      buildBetQuickButtons();
+    }
+
     // Step 2: Load theme assets (symbols, textures, animations)
     console.log('Loading theme...');
     const themeManifest = await themeManager.loadTheme(startResponse.gameId, PIXI.Assets);
@@ -407,6 +455,38 @@ async function main() {
   // Balance will be initialized from sessionInfo after successful initialization
 
   /**
+   * Refreshes the game session (e.g. after RGS restart). Updates sessionInfo, bet levels, and balance.
+   * @returns {Promise<boolean>} true if refresh succeeded
+   */
+  async function refreshSession() {
+    const operatorId = sessionInfo?.operatorId || 'operatorX';
+    try {
+      const startResponse = await network.startSession(operatorId, 'JungleRelics', {
+        lang: 'en',
+        funMode: 0,
+        playerToken: 'test-player-token-12345'
+      });
+      sessionInfo = { ...startResponse, operatorId };
+      const levels = startResponse.game?.bet?.levels;
+      if (Array.isArray(levels) && levels.length > 0) {
+        betLevels = levels.map((v) => Number(v));
+        const defaultIdx = Math.max(0, Math.min(Number(startResponse.game?.bet?.default ?? 0), betLevels.length - 1));
+        currentBetIndex = defaultIdx;
+        currentBaseBet = betLevels[currentBetIndex];
+        betAmountLabel.textContent = formatBetAmount(currentBaseBet);
+        buildBetQuickButtons();
+      }
+      const balance = getMoneyAmount(startResponse.balance ?? startResponse.initialBalance);
+      if (balance > 0) balanceLabel.textContent = balance.toFixed(2);
+      console.log('[main] Session refreshed, new sessionId:', sessionInfo.sessionId ? 'ok' : 'missing');
+      return !!sessionInfo.sessionId;
+    } catch (e) {
+      console.error('[main] Session refresh failed:', e);
+      return false;
+    }
+  }
+
+  /**
    * Handles spin button click - main game action
    * 
    * Flow:
@@ -428,6 +508,10 @@ async function main() {
       console.log('sessionInfo:', sessionInfo);
       return;
     }
+    if (!sessionInfo.sessionId) {
+      console.error('Cannot spin: sessionId is missing. RGS may have returned an unexpected format.');
+      return;
+    }
     console.log('Starting spin with sessionInfo:', sessionInfo);
     
     // Disable all controls during spin
@@ -437,18 +521,35 @@ async function main() {
     try {
       // CRITICAL: Get backend response FIRST before starting visual spin
       // This ensures we know the reel heights and symbols before spinning starts
-      // Step 1: Prepare payload for backend API
-      const playPayload = {
-        sessionId: sessionInfo.sessionId,
-        baseBet: currentBaseBet,
-        betMode: activeBetMode, // 'standard' or 'ante'
-        bets: [{ betType: 'BASE', amount: currentBaseBet }],
-        userPayload: { lang: 'en' }
+      const doPlay = () => {
+        const playPayload = {
+          sessionId: sessionInfo.sessionId,
+          baseBet: currentBaseBet,
+          betMode: activeBetMode,
+          bets: [{ betType: 'BASE', amount: currentBaseBet }],
+          userPayload: { lang: 'en' }
+        };
+        return network.play(sessionInfo.operatorId || 'operatorX', sessionInfo.gameId, playPayload);
       };
-      
-      // Step 2: Send spin request to backend and wait for results
-      console.log('[main] startSpin: Sending play request to backend...');
-      const playResponse = await network.play(sessionInfo.operatorId || 'operatorX', sessionInfo.gameId, playPayload);
+
+      let playResponse;
+      try {
+        console.log('[main] startSpin: Sending play request to backend...');
+        playResponse = await doPlay();
+      } catch (playErr) {
+        const is401 = (playErr?.message?.includes('401') || playErr?.message?.includes('Invalid session'));
+        if (is401) {
+          console.warn('[main] Invalid session (e.g. RGS restarted). Refreshing session and retrying spin...');
+          const refreshed = await refreshSession();
+          if (refreshed) {
+            playResponse = await doPlay();
+          } else {
+            throw playErr;
+          }
+        } else {
+          throw playErr;
+        }
+      }
       console.log('[main] startSpin: Backend response received', {
         hasResults: !!playResponse.results,
         hasReelSymbols: !!playResponse.results?.reelSymbols,

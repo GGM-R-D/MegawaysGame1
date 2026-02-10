@@ -24,6 +24,7 @@
 import * as PIXI from 'pixi.js';
 import { gsap } from 'gsap';
 import SymbolRenderer from './SymbolRenderer.js';
+import { getSymbolTexture } from './symbolTexture.js';
 
 /**
  * Debug logging utility
@@ -928,7 +929,7 @@ export default class GridRenderer {
         const symbolCode = this.availableSymbols[symbIndex] || this.availableSymbols[0];
         
         // Get texture from assets using symbol code
-        const texture = assets.get(symbolCode) || assets.get('PLACEHOLDER');
+        const texture = getSymbolTexture(assets, symbolCode) || assets.get('PLACEHOLDER');
         
         const symbol = reel.symbols[ip];
         
@@ -1024,7 +1025,7 @@ export default class GridRenderer {
       
       if (!symbolCode || !symbolData) continue;
       
-      const texture = assets.get(symbolCode) || assets.get('PLACEHOLDER');
+      const texture = getSymbolTexture(assets, symbolCode) || assets.get('PLACEHOLDER');
       if (!texture) continue;
       
       const symbol = symbolData.symbol;
@@ -1157,7 +1158,7 @@ export default class GridRenderer {
         }
       }
       
-      const texture = assets.get(finalCode) || assets.get('PLACEHOLDER');
+      const texture = getSymbolTexture(assets, finalCode) || assets.get('PLACEHOLDER');
       if (!texture) {
         console.error(`[GridRenderer] alignVisibleSymbolsWithBackend: No texture found for symbol "${finalCode}"`);
         continue;
@@ -1227,7 +1228,7 @@ export default class GridRenderer {
       const orderIndex = i % reel.symbOrder.length;
       const symbIndex = reel.symbOrder[orderIndex];
       const symbolCode = this.availableSymbols[symbIndex] || this.availableSymbols[0];
-      const texture = assets.get(symbolCode) || assets.get('PLACEHOLDER');
+      const texture = getSymbolTexture(assets, symbolCode) || assets.get('PLACEHOLDER');
       
       if (texture) {
         symbol.texture = texture;
@@ -1454,7 +1455,7 @@ export default class GridRenderer {
 
     // Get available symbol textures
     const slotTextures = this.availableSymbols
-      .map(alias => assets.get(alias))
+      .map(alias => getSymbolTexture(assets, alias))
       .filter(texture => texture != null);
 
     if (slotTextures.length === 0) {
@@ -2349,7 +2350,7 @@ export default class GridRenderer {
           if (!symbol || symbol.destroyed) continue;
           if (i < topReelCovers.length) {
             const symbolCode = this.topReel[i];
-            const texture = symbolCode ? assets.get(symbolCode) : null;
+            const texture = symbolCode ? getSymbolTexture(assets, symbolCode) : null;
             if (texture) {
               symbol.texture = texture;
               const scale = Math.min(
@@ -2653,7 +2654,7 @@ export default class GridRenderer {
           }
         }
 
-        const texture = assets.get(symbolCode) ?? assets.get('PLACEHOLDER');
+        const texture = getSymbolTexture(assets, symbolCode) ?? assets.get('PLACEHOLDER');
         if (!texture) {
           console.warn(`[GridRenderer] renderGridFromMatrix: Missing texture for symbol ${symbolCode}`);
           continue;
@@ -2702,7 +2703,7 @@ export default class GridRenderer {
           // Find which symbol code this texture corresponds to
           const textureUrl = sprite.texture.baseTexture?.resource?.url || '';
           const symbolCode = this.availableSymbols.find(alias => {
-            const tex = assets.get(alias);
+            const tex = getSymbolTexture(assets, alias);
             return tex?.baseTexture?.resource?.url === textureUrl;
           }) || reelSymbolsForColumn[r] || 'UNKNOWN';
           displayedSymbols.push({
@@ -2745,7 +2746,7 @@ export default class GridRenderer {
         const symbolCode = this.topReel[i]; // Use topReel array (set by setTopReel)
         if (!symbolCode) continue;
         
-        const texture = assets.get(symbolCode);
+        const texture = getSymbolTexture(assets, symbolCode);
         
         if (texture && i < this.topReelSymbols.length) {
           const symbol = this.topReelSymbols[i];
@@ -3005,7 +3006,7 @@ export default class GridRenderer {
           const symbolCode = this.topReel[clampedColumnIndex];
           
           if (symbolCode) {
-            const texture = assets.get(symbolCode);
+            const texture = getSymbolTexture(assets, symbolCode);
             if (texture) {
               const oldTexture = symbol.texture?.baseTexture?.resource?.url || 'unknown';
               symbol.texture = texture;
@@ -3119,7 +3120,7 @@ export default class GridRenderer {
         continue;
       }
 
-      const texture = assets.get(symbolCode) ?? assets.get('PLACEHOLDER');
+      const texture = getSymbolTexture(assets, symbolCode) ?? assets.get('PLACEHOLDER');
 
       if (!texture) {
         console.warn(`[GridRenderer] _applyResultToReelSpinLayer: Texture not found for symbol ${symbolCode} in reel ${col}, row ${row}`);
@@ -3128,7 +3129,7 @@ export default class GridRenderer {
       }
       
       // Log if we're using a fallback texture (PLACEHOLDER) instead of the requested symbol
-      if (symbolCode !== 'PLACEHOLDER' && !assets.get(symbolCode)) {
+      if (symbolCode !== 'PLACEHOLDER' && !getSymbolTexture(assets, symbolCode)) {
         console.warn(`[GridRenderer] _applyResultToReelSpinLayer: Symbol ${symbolCode} not found in assets, using PLACEHOLDER fallback for reel ${col}, row ${row}`);
       }
 
@@ -3617,7 +3618,7 @@ export default class GridRenderer {
               }
             }
 
-            const texture = assets.get(symbolCode) ?? assets.get('PLACEHOLDER');
+            const texture = getSymbolTexture(assets, symbolCode) ?? assets.get('PLACEHOLDER');
             if (!texture) {
               return;
             }
@@ -3696,7 +3697,7 @@ export default class GridRenderer {
             const topReelCoversApply = [1, 2, 3, 4];
             for (let i = 0; i < topReelCoversApply.length && i < this.topReelSymbols.length; i++) {
               const symbolCode = topReelSymbolsAfter[i];
-              const texture = assets.get(symbolCode) ?? assets.get('PLACEHOLDER');
+              const texture = getSymbolTexture(assets, symbolCode) ?? assets.get('PLACEHOLDER');
               const symbol = this.topReelSymbols[i];
               if (texture && symbol && !symbol.destroyed) {
                 symbol.texture = texture;

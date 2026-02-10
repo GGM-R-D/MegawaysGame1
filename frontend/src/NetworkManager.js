@@ -64,14 +64,15 @@ export default class NetworkManager {
     const data = await this.#handleResponse(response);
     
     // Transform RGS response to match frontend expectations
-    // RGS returns: { player: { sessionId, id, balance }, game: {...}, ... }
-    // Frontend expects: { sessionId, gameId, balance, ... }
+    // RGS returns: { player: { sessionId, id, balance }, game: {...}, ... } (camelCase or PascalCase)
+    const player = data.player ?? {};
+    const sessionId = player.sessionId ?? player.SessionId;
     return {
-      sessionId: data.player?.sessionId,
+      sessionId,
       gameId: gameId, // Use the gameId from the request
-      balance: data.player?.balance,
-      initialBalance: data.player?.balance,
-      playerId: data.player?.id,
+      balance: player.balance ?? player.Balance,
+      initialBalance: player.balance ?? player.Balance,
+      playerId: player.id ?? player.Id,
       operatorId: operatorId,
       // Include full response for any other fields needed
       ...data

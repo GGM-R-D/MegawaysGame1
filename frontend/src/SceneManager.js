@@ -147,6 +147,10 @@ export default class SceneManager {
     this.availableSymbols = themeManifest.assets
       .map((asset) => asset.alias)
       .filter((alias) => !alias.includes('TEXTURE') && alias !== PLACEHOLDER_SYMBOL);
+    // Backend uses symbol code "10" for card-10; ensure it's in the list (texture may be alias "10" or "TEN")
+    if (!this.availableSymbols.includes('10')) {
+      this.availableSymbols.push('10');
+    }
 
     // Add layers to stage in rendering order (bottom to top)
     this.app.stage.addChild(this.backgroundLayer); // Bottom: backgrounds
