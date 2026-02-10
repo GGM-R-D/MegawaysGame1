@@ -44,8 +44,8 @@
     "buyFreeSpinsCostMultiplier": 100
   },
   "betModes": {
-    "standard": { "reelWeights": { "low": 860, "high": 140 } },
-    "ante": { "reelWeights": { "low": 160, "high": 840 } }
+    "standard": { "reelWeights": { "low": 500, "high": 500 } },
+    "ante": { "reelWeights": { "low": 200, "high": 800 } }
   },
   "buyFeature": {
     "enabledBetMode": "standard",

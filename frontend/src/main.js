@@ -128,12 +128,13 @@ async function main() {
   };
 
   // Set up bet mode radio button listeners
-  // Bet mode can be 'standard' or 'ante' (ante has higher volatility)
+  // Bet mode can be 'standard' or 'ante' (ante has higher volatility, 1.25x total bet)
   betModeInputs.forEach((input) => {
     input.addEventListener('change', (event) => {
       if (event.target.checked) {
         activeBetMode = event.target.value;
         updateControlStates(); // Update button states (buy button disabled in ante mode)
+        updateBetDisplay(); // Show new total (base vs base * 1.25 for ante)
       }
     });
   });
@@ -169,14 +170,27 @@ async function main() {
     buyFreeSpins(); // Purchase and trigger free spins
   });
   
-  // Initialize UI with default values
-  betAmountLabel.textContent = formatBetAmount(currentBaseBet);
+  // Initialize UI with default values (updateBetDisplay defined below)
   updateControlStates(); // Set initial button states
 
   /** Format bet for display (e.g. 0.2 -> "0.20", 12 -> "12.00") */
   function formatBetAmount(amount) {
     const n = Number(amount);
     return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+  }
+
+  /** Ante mode multiplies total bet by 1.25 (backend uses same multiplier) */
+  const ANTE_BET_MULTIPLIER = 1.25;
+  /** Amount shown in TOTAL BET: base stake, or base * 1.25 in ante mode */
+  function getDisplayBetAmount() {
+    const base = Number(currentBaseBet);
+    if (activeBetMode === 'ante') {
+      return Math.round(base * ANTE_BET_MULTIPLIER * 100) / 100;
+    }
+    return base;
+  }
+  function updateBetDisplay() {
+    betAmountLabel.textContent = formatBetAmount(getDisplayBetAmount());
   }
 
   // Bet adjustment buttons (up/down) - step through backend bet levels
@@ -189,7 +203,7 @@ async function main() {
     if (currentBetIndex < betLevels.length - 1) {
       currentBetIndex += 1;
       currentBaseBet = betLevels[currentBetIndex];
-      betAmountLabel.textContent = formatBetAmount(currentBaseBet);
+      updateBetDisplay();
     }
   });
 
@@ -199,9 +213,11 @@ async function main() {
     if (currentBetIndex > 0) {
       currentBetIndex -= 1;
       currentBaseBet = betLevels[currentBetIndex];
-      betAmountLabel.textContent = formatBetAmount(currentBaseBet);
+      updateBetDisplay();
     }
   });
+
+  updateBetDisplay(); // Initial TOTAL BET label (standard = base, ante = base * 1.25)
 
   // Turbo mode button - speeds up all animations by 60%
   if (turboButton) {
@@ -304,7 +320,7 @@ async function main() {
     }
     currentBetIndex = bestIdx;
     currentBaseBet = betLevels[currentBetIndex];
-    betAmountLabel.textContent = formatBetAmount(currentBaseBet);
+    updateBetDisplay();
     betModal.classList.remove('active');
   });
 
@@ -404,7 +420,7 @@ async function main() {
       ));
       currentBetIndex = defaultIdx;
       currentBaseBet = betLevels[currentBetIndex];
-      betAmountLabel.textContent = formatBetAmount(currentBaseBet);
+      updateBetDisplay();
       buildBetQuickButtons();
     }
 
@@ -473,7 +489,7 @@ async function main() {
         const defaultIdx = Math.max(0, Math.min(Number(startResponse.game?.bet?.default ?? 0), betLevels.length - 1));
         currentBetIndex = defaultIdx;
         currentBaseBet = betLevels[currentBetIndex];
-        betAmountLabel.textContent = formatBetAmount(currentBaseBet);
+        updateBetDisplay();
         buildBetQuickButtons();
       }
       const balance = getMoneyAmount(startResponse.balance ?? startResponse.initialBalance);
