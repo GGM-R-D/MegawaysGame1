@@ -84,7 +84,7 @@
     ]
   },
   "freeSpins": {
-    "initialSpins": 12,
+    "initialSpins": 10,
     "retriggerSpins": 5,
     "retriggerScatterCount": 3
   },

@@ -426,6 +426,10 @@
         <span class="label">BALANCE</span>
         <span class="value" id="balance-amount">0.00</span>
       </div>
+      <div class="info-card" id="free-spins-card" style="display: none;">
+        <span class="label">FREE SPINS</span>
+        <span class="value" id="free-spins-left">0</span>
+      </div>
       <div class="info-card">
         <span class="label">TOTAL BET</span>
         <div class="bet-amount-container">
@@ -447,6 +451,21 @@
         <label><input type="radio" name="bet-mode" value="ante">Ante</label>
       </div>
       <button class="secondary-button" id="btn-turbo" disabled>Turbo</button>
+    </div>
+
+    <!-- Buy Free Spins confirmation -->
+    <div id="buy-confirm-modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">Buy Free Spins</h2>
+          <button class="close-button" id="close-buy-confirm-modal">&times;</button>
+        </div>
+        <p id="buy-confirm-message" style="margin: 16px 0; color: #f8f5e7;">Buy 10 Free Spins for <strong id="buy-confirm-cost">0.00</strong>? (100× your bet)</p>
+        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
+          <button class="secondary-button" id="buy-confirm-no">No</button>
+          <button class="spin-button" id="buy-confirm-yes">Yes</button>
+        </div>
+      </div>
     </div>
 
     <!-- Bet Adjustment Modal -->

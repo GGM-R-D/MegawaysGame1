@@ -89,6 +89,9 @@ async function main() {
   const betAmountLabel = document.getElementById('bet-amount');
   const totalWinLabel = document.getElementById('win-amount');
   const balanceLabel = document.getElementById('balance-amount');
+  const freeSpinsCard = document.getElementById('free-spins-card');
+  const freeSpinsLeftEl = document.getElementById('free-spins-left');
+  let freeSpinsLeft = 0; // from last play response (data.freeSpins.left)
   const timestampBox = document.getElementById('timestamp-box');
   const infoButton = document.getElementById('btn-info');
   const soundButton = document.getElementById('btn-sound');
@@ -163,11 +166,31 @@ async function main() {
     startSpin(); // Start the spin process
   });
   
-  // Buy Free Spins button - purchases free spin feature
+  // Buy Free Spins button - show confirmation popup (cost 100× bet), then send play with isFeatureBuy
+  const buyConfirmModal = document.getElementById('buy-confirm-modal');
+  const buyConfirmCostEl = document.getElementById('buy-confirm-cost');
+  const buyConfirmYes = document.getElementById('buy-confirm-yes');
+  const buyConfirmNo = document.getElementById('buy-confirm-no');
+  const closeBuyConfirm = document.getElementById('close-buy-confirm-modal');
+
   buyButton.addEventListener('click', () => {
     sceneManager.audioManager?.playClick();
-    startMusicOnInteraction(); // Ensure music starts
-    buyFreeSpins(); // Purchase and trigger free spins
+    startMusicOnInteraction();
+    if (!sessionInfo || activeBetMode !== 'standard') return;
+    const cost = Math.round(currentBaseBet * 100 * 100) / 100;
+    buyConfirmCostEl.textContent = formatBetAmount(cost);
+    buyConfirmModal.classList.add('active');
+  });
+
+  function closeBuyConfirmModal() {
+    buyConfirmModal.classList.remove('active');
+  }
+  closeBuyConfirm?.addEventListener('click', () => { sceneManager.audioManager?.playClick(); closeBuyConfirmModal(); });
+  buyConfirmNo?.addEventListener('click', () => { sceneManager.audioManager?.playClick(); closeBuyConfirmModal(); });
+  buyConfirmYes?.addEventListener('click', () => {
+    sceneManager.audioManager?.playClick();
+    closeBuyConfirmModal();
+    executePlay(true); // isFeatureBuy = true
   });
   
   // Initialize UI with default values (updateBetDisplay defined below)
@@ -190,7 +213,17 @@ async function main() {
     return base;
   }
   function updateBetDisplay() {
-    betAmountLabel.textContent = formatBetAmount(getDisplayBetAmount());
+    if (freeSpinsLeft > 0) {
+      betAmountLabel.textContent = 'FREE';
+    } else {
+      betAmountLabel.textContent = formatBetAmount(getDisplayBetAmount());
+    }
+  }
+
+  function updateFreeSpinsDisplay() {
+    if (freeSpinsLeftEl) freeSpinsLeftEl.textContent = String(freeSpinsLeft);
+    if (freeSpinsCard) freeSpinsCard.style.display = freeSpinsLeft > 0 ? '' : 'none';
+    updateBetDisplay();
   }
 
   // Bet adjustment buttons (up/down) - step through backend bet levels
@@ -383,9 +416,9 @@ async function main() {
   });
 
   // Close modals when clicking outside the modal content
-  [betModal, infoModal, soundModal].forEach(modal => {
+  [betModal, infoModal, soundModal, buyConfirmModal].filter(Boolean).forEach(modal => {
     modal.addEventListener('click', (e) => {
-      if (e.target === modal) { // Clicked on backdrop, not content
+      if (e.target === modal) {
         modal.classList.remove('active');
       }
     });
@@ -529,33 +562,38 @@ async function main() {
       return;
     }
     console.log('Starting spin with sessionInfo:', sessionInfo);
-    
-    // Disable all controls during spin
+    executePlay(false);
+  }
+
+  /**
+   * Sends a play request (normal spin or feature buy), then runs animation and renders results.
+   * @param {boolean} isFeatureBuy - If true, backend treats as buy free spins (100× bet), uses free spins reels and awards free spins.
+   */
+  async function executePlay(isFeatureBuy) {
     setControlsDisabled(true);
     totalWinLabel.textContent = '0.00';
 
-    try {
-      // CRITICAL: Get backend response FIRST before starting visual spin
-      // This ensures we know the reel heights and symbols before spinning starts
-      const doPlay = () => {
-        const playPayload = {
-          sessionId: sessionInfo.sessionId,
-          baseBet: currentBaseBet,
-          betMode: activeBetMode,
-          bets: [{ betType: 'BASE', amount: currentBaseBet }],
-          userPayload: { lang: 'en' }
-        };
-        return network.play(sessionInfo.operatorId || 'operatorX', sessionInfo.gameId, playPayload);
+    const doPlay = () => {
+      const playPayload = {
+        sessionId: sessionInfo.sessionId,
+        baseBet: currentBaseBet,
+        betMode: activeBetMode,
+        bets: [{ betType: 'BASE', amount: currentBaseBet }],
+        userPayload: { lang: 'en' },
+        isFeatureBuy: !!isFeatureBuy
       };
+      return network.play(sessionInfo.operatorId || 'operatorX', sessionInfo.gameId, playPayload);
+    };
 
+    try {
       let playResponse;
       try {
-        console.log('[main] startSpin: Sending play request to backend...');
+        console.log('[main] Sending play request...', isFeatureBuy ? '(feature buy)' : '');
         playResponse = await doPlay();
       } catch (playErr) {
         const is401 = (playErr?.message?.includes('401') || playErr?.message?.includes('Invalid session'));
         if (is401) {
-          console.warn('[main] Invalid session (e.g. RGS restarted). Refreshing session and retrying spin...');
+          console.warn('[main] Invalid session. Refreshing and retrying...');
           const refreshed = await refreshSession();
           if (refreshed) {
             playResponse = await doPlay();
@@ -566,110 +604,27 @@ async function main() {
           throw playErr;
         }
       }
-      console.log('[main] startSpin: Backend response received', {
-        hasResults: !!playResponse.results,
-        hasReelSymbols: !!playResponse.results?.reelSymbols,
-        hasCascades: !!playResponse.results?.cascades,
-        cascadesCount: playResponse.results?.cascades?.length || 0,
-        win: playResponse.win,
-        balance: playResponse.balance
-      });
-      const cascadeWinAmounts = playResponse.results?.cascadeWinAmounts ?? playResponse.results?.cascades?.map(c => (c.totalWin ?? c.TotalWin ?? 0)) ?? [];
-      const totalWin = getMoneyAmount(playResponse.win ?? playResponse.results?.totalWin);
-      console.log('[main] startSpin: Cascade win amounts (each hit):', cascadeWinAmounts.map((a, i) => `Cascade ${i + 1}: ${Number(a).toFixed(2)}`).join(', '));
-      console.log('[main] startSpin: Total win:', totalWin.toFixed(2));
 
-      if (playResponse.results?.reelSymbols) {
-        console.log('[main] startSpin: Reel symbols from backend:', playResponse.results.reelSymbols.map(r => r?.length || 0));
-      }
-      
-      // Step 3: Preload result data BEFORE starting visual spin
-      // This sets reel heights and applies textures so the spin starts with correct sizes
-      console.log('[main] startSpin: Preloading result data before spin...');
       sceneManager.preloadSpinResult(playResponse.results);
-      
-      // Step 4: Start visual spin animation (reels start spinning with correct sizes already applied)
-      console.log('[main] startSpin: Starting visual spin animation...');
       sceneManager.startSpinAnimation();
-      
-      // Step 5: Render results (handles cascades, free spins, etc.)
-      console.log('[main] startSpin: Calling renderResults...');
       sceneManager.renderResults(playResponse.results, playResponse, {
         onCascadeWin: (stepIndex, stepWin, runningTotal) => {
-          console.log(`[main] Cascade ${stepIndex + 1} hit: win=${stepWin.toFixed(2)}, running total=${runningTotal.toFixed(2)}`);
           totalWinLabel.textContent = runningTotal.toFixed(2);
         }
       });
-      console.log('[main] startSpin: renderResults completed');
-      
-      // Step 5: Update UI with results
+
       const winAmount = getMoneyAmount(playResponse.win);
       const balance = getMoneyAmount(playResponse.balance ?? playResponse.balanceAfter);
-      // ROUND and CURRENT WIN elements removed - no longer update them
-      // roundLabel and roundWinLabel are null
       totalWinLabel.textContent = winAmount.toFixed(2);
       if (balance > 0) {
         balanceLabel.textContent = balance.toFixed(2);
       }
+      // Update free spins left from response (data.freeSpins.left)
+      freeSpinsLeft = playResponse.freeSpins?.left ?? playResponse.freeSpins?.Left ?? 0;
+      updateFreeSpinsDisplay();
     } catch (err) {
-      // Error handling - stop animation and show error
-      console.error('Spin failed', err);
+      console.error('Play failed', err);
       sceneManager.stopSpinAnimation();
-      // ROUND and CURRENT WIN elements removed - no longer update them
-    } finally {
-      // Always re-enable controls, even on error
-      setControlsDisabled(false);
-    }
-  }
-
-  /**
-   * Handles buy free spins feature
-   * 
-   * Purchases free spins directly (costs 100x base bet).
-   * Only available in 'standard' bet mode, not 'ante'.
-   * 
-   * Flow is similar to startSpin() but uses buyFreeSpins API endpoint.
-   * 
-   * @async
-   * @returns {Promise<void>}
-   */
-  async function buyFreeSpins() {
-    // Validate: session exists and bet mode is standard
-    if (!sessionInfo || activeBetMode !== 'standard') {
-      return;
-    }
-
-    setControlsDisabled(true);
-    try {
-      // Start visual spin animation
-      sceneManager.startSpinAnimation();
-      
-      // Prepare buy payload
-      const buyPayload = {
-        sessionId: sessionInfo.sessionId,
-        baseBet: currentBaseBet,
-        betMode: 'standard' // Buy feature only works in standard mode
-      };
-      
-      // Send buy request to backend
-      const response = await network.buyFreeSpins(sessionInfo.operatorId || 'operatorX', sessionInfo.gameId, buyPayload);
-      
-      // Render results (will trigger free spin transition if successful)
-      sceneManager.renderResults(response.results, response);
-      
-      // Update UI
-      const winAmount = getMoneyAmount(response.win);
-      const costAmount = getMoneyAmount(response.buyCost);
-      const balance = getMoneyAmount(response.balance ?? response.balanceAfter);
-      // ROUND and CURRENT WIN elements removed - no longer update them
-      totalWinLabel.textContent = winAmount.toFixed(2);
-      if (balance > 0) {
-        balanceLabel.textContent = balance.toFixed(2);
-      }
-    } catch (err) {
-      console.error('Buy failed', err);
-      sceneManager.stopSpinAnimation();
-      // ROUND and CURRENT WIN elements removed - no longer update them
     } finally {
       setControlsDisabled(false);
     }

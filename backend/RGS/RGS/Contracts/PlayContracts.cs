@@ -8,6 +8,8 @@ public sealed class ClientPlayRequest
     public required decimal BaseBet { get; init; }
     public string BetMode { get; init; } = "standard";
     public required IReadOnlyList<ClientBetRequest> Bets { get; init; }
+    /// <summary>When true, play is a feature buy (100× base bet); engine uses free spins reels and awards initial free spins.</summary>
+    public bool IsFeatureBuy { get; init; }
     public JsonElement? UserPayload { get; init; }
     public JsonElement? LastResponse { get; init; }
 }

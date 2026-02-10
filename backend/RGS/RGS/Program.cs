@@ -282,6 +282,13 @@ app.MapPost("/{operatorId}/{gameId}/play",
                     "Unknown betMode."), statusCode: 400);
             }
 
+            if (request.IsFeatureBuy && betMode != BetMode.Standard)
+            {
+                return Results.Json(new RgsApiResponse<PlayGameResponse>(
+                    STATUS_BAD_REQUEST,
+                    "ANTE_MODE_BUY_NOT_ALLOWED"), statusCode: 400);
+            }
+
             if (request.Bets is null || request.Bets.Count == 0)
             {
                 return Results.Json(new RgsApiResponse<PlayGameResponse>(
@@ -310,8 +317,9 @@ app.MapPost("/{operatorId}/{gameId}/play",
                     "Total bet must be positive."), statusCode: 400);
             }
 
-            // Get previous balance
+            // Get previous balance and whether this spin is a free spin (no deduction)
             var prevBalance = balanceService.GetBalance(session.PlayerToken);
+            var wasInFreeSpins = session.State?.IsInFreeSpins == true;
 
             List<BetRequest> betRequests;
             try
@@ -339,7 +347,7 @@ app.MapPost("/{operatorId}/{gameId}/play",
                 BaseBet: baseBet,
                 TotalBet: totalBet,
                 BetMode: betMode,
-                IsFeatureBuy: false,
+                IsFeatureBuy: request.IsFeatureBuy,
                 EngineState: session.State ?? EngineSessionState.Create(),
                 UserPayload: request.UserPayload,
                 LastResponse: request.LastResponse,
@@ -348,7 +356,7 @@ app.MapPost("/{operatorId}/{gameId}/play",
                 Currency: JsonSerializer.SerializeToElement(new { id = currency.IsoCode }));
 
             Console.WriteLine($"[RGS] ===== PLAY REQUEST RECEIVED =====");
-            Console.WriteLine($"[RGS] GameId: {gameId}, SessionId: {request.SessionId}");
+            Console.WriteLine($"[RGS] GameId: {gameId}, SessionId: {request.SessionId}, IsFeatureBuy: {request.IsFeatureBuy}");
             Console.WriteLine($"[RGS] BaseBet: {baseBet.Amount}, TotalBet: {totalBet.Amount}, BetMode: {betMode}");
 
             var engineResponse = await engineClient.PlayAsync(engineRequest, cancellationToken);
@@ -358,13 +366,16 @@ app.MapPost("/{operatorId}/{gameId}/play",
             Console.WriteLine($"[RGS] Win: {engineResponse.Win.Amount}, ScatterWin: {engineResponse.ScatterWin.Amount}, FeatureWin: {engineResponse.FeatureWin.Amount}");
             Console.WriteLine($"[RGS] FreeSpinsAwarded: {engineResponse.FreeSpinsAwarded}");
 
-            // Process balance transactions
+            // Process balance: feature buy = deduct buy cost; free spin = deduct 0; normal = deduct total bet
             var totalWin = engineResponse.Win.Amount;
+            var amountToDeduct = request.IsFeatureBuy
+                ? engineResponse.BuyCost.Amount
+                : (wasInFreeSpins ? 0m : totalBet.Amount);
             var (withdrawId, depositId) = balanceService.ProcessBetAndWin(
-                session.PlayerToken, 
-                totalBet.Amount, 
+                session.PlayerToken,
+                amountToDeduct,
                 totalWin);
-            
+
             var newBalance = balanceService.GetBalance(session.PlayerToken);
 
             // Update session state
@@ -406,6 +417,7 @@ app.MapPost("/{operatorId}/{gameId}/play",
                     IsClosure: isFeatureClosure ? 1 : 0)
                 : new FeaturePlayInfo("", "", 0);
 
+            var playerBetAmount = request.IsFeatureBuy ? engineResponse.BuyCost.Amount : (wasInFreeSpins ? 0m : totalBet.Amount);
             var response = new PlayGameResponse(
                 Player: new PlayerPlayInfo(
                     SessionId: session.SessionId,
@@ -415,7 +427,7 @@ app.MapPost("/{operatorId}/{gameId}/play",
                         Deposit: depositId),
                     PrevBalance: prevBalance,
                     Balance: newBalance,
-                    Bet: totalBet.Amount,
+                    Bet: playerBetAmount,
                     Win: totalWin,
                     CurrencyId: currency.IsoCode),
                 Game: new GamePlayInfo(

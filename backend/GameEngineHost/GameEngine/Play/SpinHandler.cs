@@ -320,6 +320,14 @@ public sealed class SpinHandler
             }
         }
 
+        // Buy entry: paid to enter free spins — initialize free spins state (this spin was the first free spin)
+        if (spinMode == SpinMode.BuyEntry)
+        {
+            InitializeFreeSpins(configuration, nextState, configuration.FreeSpins.InitialSpins);
+            freeSpinsAwarded = configuration.FreeSpins.InitialSpins;
+            spinMode = SpinMode.FreeSpins;
+        }
+
         if (spinMode == SpinMode.FreeSpins && nextState.FreeSpins is not null)
         {
             nextState.FreeSpins.SpinsRemaining = Math.Max(0, nextState.FreeSpins.SpinsRemaining - 1);
