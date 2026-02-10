@@ -2289,10 +2289,6 @@ export default class GridRenderer {
       }
     }
 
-    setTimeout(() => {
-      this.debugLogger.download();
-    }, 500);
-    
     // Ensure top reel is at exact target position and apply final textures
     if (this.topReelSpinLayer && this.topReelSymbols.length > 0) {
       this.topReelSpinning = false;
