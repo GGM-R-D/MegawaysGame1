@@ -1835,7 +1835,7 @@ export default class GridRenderer {
       targetAngle = -(angleToNextSymb + fullRotations);
       
     } else {
-      // Continuous spin - use large negative angle
+      // Continuous spin (waiting for backend) - use large negative angle so reels keep moving
       targetAngle = -reel.anglePerTileDeg * reel.symbOrder.length * spinSpeedMultiplier;
     }
     
@@ -2946,19 +2946,18 @@ export default class GridRenderer {
     // This prevents the second call (from continueRenderResults) from overwriting with wrong data
     const isNewSpin = !this.resultMatrix || !this.running;
     if (isNewSpin) {
-    this.resultMatrix = reelSymbols.map(reel => [...reel]);
+      this.resultMatrix = reelSymbols.map(reel => [...reel]);
       console.log('[GridRenderer] preloadSpinResult: Stored result matrix for new spin');
     } else {
       console.log('[GridRenderer] preloadSpinResult: Skipping - resultMatrix already set and spin is running');
       return; // Don't overwrite resultMatrix during an active spin
     }
-    
+
     // CRITICAL: First, update symbol scaling based on reelHeights if available
-    // This ensures symbols are the correct size BEFORE applying textures
     if (this.reelHeights && this.reelHeights.length > 0) {
       this._updateReelScalingForHeights();
     }
-    
+
     // CRITICAL: Don't apply textures here - wait until startSpin sets targetPosition
     // The problem: targetPosition is calculated with random 'extra' value, which will be different
     // between preloadSpinResult and startSpin, causing textures to be applied to wrong sprites
@@ -2966,18 +2965,16 @@ export default class GridRenderer {
     for (let col = 0; col < this.columns && col < this.reels.length; col++) {
       const reel = this.reels[col];
       if (reel) {
-        // Don't apply textures yet - wait for startSpin to set targetPosition
+        // Don't apply textures yet - wait until startSpin sets targetPosition
         // Just mark that we're ready to apply textures
         reel.finalTexturesApplied = false;
       }
     }
-    
+
     console.log('[GridRenderer] preloadSpinResult: Result matrix stored, textures will be applied in startSpin after targetPosition is calculated');
 
     // Update top reel textures so the topper stops on the correct symbols
     this._applyResultToTopReelSpinLayer(reelSymbols, assets);
-    
-    console.log('[GridRenderer] preloadSpinResult: All textures and scaling applied immediately - reels will stop on correct symbols');
   }
   
   _applyResultToTopReelSpinLayer(reelSymbols, assets) {

@@ -605,6 +605,7 @@ async function main() {
         }
       }
 
+      // Preload result, then start visual spin and render results
       sceneManager.preloadSpinResult(playResponse.results);
       sceneManager.startSpinAnimation();
       sceneManager.renderResults(playResponse.results, playResponse, {

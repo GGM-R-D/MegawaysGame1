@@ -162,44 +162,23 @@ export default class SceneManager {
     this.sceneLayer.visible = true;
     this.transitionLayer.visible = false; // Hidden until free spins trigger
     
-    // Initialize Background1 animation (base game background)
-    // Uses 105 WebP frames (background1_1.webp to background1_105.webp)
+    // Initialize Background1 (base game) - use single frame for fast load; no heavy animation at startup
     this.backgroundAnimation = new BackgroundAnimation({
       app: this.app,
       basePath: '/animations/Background1',
-      frameCount: 105,
+      frameCount: 1,
       framePrefix: 'background1_',
       frameExtension: '.webp'
     });
     await this.backgroundAnimation.load();
     this.backgroundLayer.addChild(this.backgroundAnimation.container);
     this.backgroundAnimation.container.visible = true;
-    // Resize background to fill screen
     this.backgroundAnimation.resize(this.app.renderer.width, this.app.renderer.height);
-    this.backgroundAnimation.play(); // Start animation loop
-    
-    // Initialize free spin transition video
-    // Plays full-screen MP4 video when free spins are triggered
-    this.freeSpinTransition = new FreeSpinTransition({
-      app: this.app,
-      videoPath: '/animations/free spin transistions/PixVerse_V5_Transition_360P.mp4'
-    });
-    await this.freeSpinTransition.load();
-    this.transitionLayer.addChild(this.freeSpinTransition.container);
-    
-    // Initialize Background2 animation (free spins background)
-    // Uses 151 WebP frames (background2_1.webp to background2_151.webp)
-    // Hidden until free spins trigger, then shown after transition video
-    this.background2Animation = new BackgroundAnimation({
-      app: this.app,
-      basePath: '/animations/Background2',
-      frameCount: 151,
-      framePrefix: 'background2_',
-      frameExtension: '.webp'
-    });
-    await this.background2Animation.load();
-    this.background2Animation.container.visible = false; // Hidden until free spins
-    this.backgroundLayer.addChild(this.background2Animation.container);
+    this.backgroundAnimation.play();
+
+    // Free spin transition and Background2 are NOT loaded at startup (deferred until free spins trigger)
+    // This keeps initial load fast. They are created and loaded in playFreeSpinTransition when needed.
+    this.freeSpinTransition = null;
 
     this.gridRenderer = new GridRenderer({
       app: this.app,
@@ -502,6 +481,7 @@ export default class SceneManager {
       // Top reel transition is handled in cascade steps
 
       // Play cascade sequence (highlights wins, fades symbols, drops new ones)
+      // Win sound is played once per cascade step inside AnimationManager.playCascadeSequence
       this.animationManager.playCascadeSequence(cascades, {
         gridRenderer: this.gridRenderer,
         assets: this.assets,
@@ -510,21 +490,6 @@ export default class SceneManager {
         isTurboMode: this.isTurboMode,
         onCascadeWin: options?.onCascadeWin ?? null
       });
-      
-      // Play win sound if there's a win (check final cascade or playResponse)
-      // This plays after all cascades complete
-      if (playResponse && playResponse.win) {
-        const winAmount = typeof playResponse.win === 'number' ? playResponse.win : (playResponse.win?.amount ?? 0);
-        if (winAmount > 0) {
-          // Consider it a big win if win is 10x or more of base bet
-          const baseBet = playResponse.baseBet ?? 0.2;
-          if (winAmount >= baseBet * 10) {
-            this.audioManager.playBigWin();
-          } else {
-            this.audioManager.playWin();
-          }
-        }
-      }
     };
 
     // If reels are still spinning, wait for them to complete
@@ -589,11 +554,27 @@ export default class SceneManager {
    * @returns {Promise<void>}
    */
   async playFreeSpinTransition(onComplete) {
-    console.log('playFreeSpinTransition called', { hasTransition: !!this.freeSpinTransition });
+    // Deferred load: free spin transition and Background2 are loaded only when free spins trigger
     if (!this.freeSpinTransition) {
-      console.warn('No free spin transition available');
-      if (onComplete) onComplete();
-      return Promise.resolve();
+      this.freeSpinTransition = new FreeSpinTransition({
+        app: this.app,
+        videoPath: '/animations/free spin transistions/PixVerse_V5_Transition_360P.mp4'
+      });
+      await this.freeSpinTransition.load();
+      this.transitionLayer.addChild(this.freeSpinTransition.container);
+    }
+    if (!this.background2Animation) {
+      this.background2Animation = new BackgroundAnimation({
+        app: this.app,
+        basePath: '/animations/Background2',
+        frameCount: 1,
+        framePrefix: 'background2_',
+        frameExtension: '.webp'
+      });
+      await this.background2Animation.load();
+      this.background2Animation.container.visible = false;
+      this.backgroundLayer.addChild(this.background2Animation.container);
+      this.background2Animation.resize(this.app.renderer.width, this.app.renderer.height);
     }
 
     // Stop any running spin during transition
@@ -603,35 +584,24 @@ export default class SceneManager {
 
     // Hide game elements during transition (but keep background visible)
     this.sceneLayer.visible = false;
-    // Hide background1, will show background2 after transition
     if (this.backgroundAnimation) {
       this.backgroundAnimation.container.visible = false;
     }
     this.backgroundLayer.visible = true;
-    
-    // Ensure transition layer is visible and on top
-    this.transitionLayer.visible = true;
-    this.transitionLayer.zIndex = 9999; // Ensure it's on top
 
-    // Play transition animation
+    this.transitionLayer.visible = true;
+    this.transitionLayer.zIndex = 9999;
+
     return new Promise((resolve) => {
       this.freeSpinTransition.play(() => {
-        console.log('Free spin transition completed');
-        
-        // Switch to Background2 after transition
         if (this.background2Animation) {
           this.background2Animation.container.visible = true;
           this.background2Animation.play();
         }
-        
-        // Show game elements after transition
         this.sceneLayer.visible = true;
         this.backgroundLayer.visible = true;
         this.transitionLayer.visible = false;
-        
-        if (onComplete) {
-          onComplete();
-        }
+        if (onComplete) onComplete();
         resolve();
       });
     });
