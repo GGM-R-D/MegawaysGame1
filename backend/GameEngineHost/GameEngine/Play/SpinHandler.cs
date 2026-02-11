@@ -106,6 +106,9 @@ public sealed class SpinHandler
         int freeSpinsAwarded = 0;
         IReadOnlyList<IReadOnlyList<string>>? finalReelSymbols = null;
 
+        // In ante mode: payouts are based on original base bet, not the 1.25x total bet
+        var betForPayouts = request.BetMode == BetMode.Ante ? request.BaseBet : request.TotalBet;
+
         while (true)
         {
             var reelSymbolsBefore = board.GetReelSymbols();
@@ -142,7 +145,7 @@ public sealed class SpinHandler
             Console.WriteLine($"[SpinHandler] ----------------------------------------");
 
             // Evaluate wins using jagged array structure, including top reel symbols
-            var evaluation = _winEvaluator.EvaluateMegaways(reelSymbolsBefore, topReelSymbolsForEval, configuration, request.TotalBet);
+            var evaluation = _winEvaluator.EvaluateMegaways(reelSymbolsBefore, topReelSymbolsForEval, configuration, betForPayouts);
 
             if (evaluation.SymbolWins.Count > 0)
             {
@@ -297,7 +300,7 @@ public sealed class SpinHandler
             Console.WriteLine($"[SpinHandler] Cascade {cascades.Count} hit - Win: {cascadeFinalWin.Amount}");
         }
 
-        var scatterOutcome = ResolveScatterOutcome(board, configuration, request.TotalBet);
+        var scatterOutcome = ResolveScatterOutcome(board, configuration, betForPayouts);
         if (scatterOutcome is not null)
         {
             scatterWin = scatterOutcome.Win;
@@ -339,7 +342,7 @@ public sealed class SpinHandler
             }
         }
 
-        var maxWin = Money.FromBet(request.TotalBet.Amount, configuration.MaxWinMultiplier);
+        var maxWin = Money.FromBet(betForPayouts.Amount, configuration.MaxWinMultiplier);
         if (totalWin.Amount > maxWin.Amount)
         {
             totalWin = maxWin;
